@@ -36,15 +36,24 @@ func on_register(id: int, nm: Variant) -> void:
 	sim.add_tank(id, name_)
 	_last_seq[id] = 0
 	print("joined: %s (%d)" % [name_, id])
-	var info := {
-		"you": id, "w": sim.map.w, "h": sim.map.h, "grid": sim.map.to_bytes(),
-		"roster": Protocol.encode_roster(sim), "snap": Protocol.encode_snapshot(sim),
-	}
+	var info := build_welcome(id)
 	if id == 1 and local_client:
 		local_client.on_welcome(info)
 	else:
 		net.c_welcome.rpc_id(id, info)
 	_out.append({"k": "join", "id": id, "name": name_})
+
+func build_welcome(id: int) -> Dictionary:
+	return {
+		"you": id, "w": sim.map.w, "h": sim.map.h, "grid": sim.map.to_bytes(), "rev": sim.map_rev,
+		"roster": Protocol.encode_roster(sim), "snap": Protocol.encode_snapshot(sim),
+	}
+
+# A client that noticed it missed terrain/roster events asks for the full state again.
+func on_resync(id: int) -> void:
+	if id != 0 and id != 1 and sim.tanks.has(id):
+		print("resync: %s" % sim.tanks[id].name)
+		net.c_welcome.rpc_id(id, build_welcome(id))
 
 func on_input(id: int, seq: Variant, dir: Variant, fire: Variant) -> void:
 	if id == 0:

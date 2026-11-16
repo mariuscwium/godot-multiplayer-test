@@ -15,6 +15,7 @@ class Tank extends RefCounted:
 	var input_fire := false
 	var ack_seq := 0
 	var slide_t := 0.0
+	var last_input := 0.0          # sim time of the last accepted input
 
 class Bullet extends RefCounted:
 	var id := 0
@@ -31,6 +32,7 @@ var tanks := {}                    # id -> Tank
 var bullets: Array = []
 var powerups: Array = []
 var tick := 0
+var map_rev := 0                   # number of terrain events emitted; clients use it to detect lost events
 var time := 0.0
 var rng := RandomNumberGenerator.new()
 var _events: Array = []
@@ -60,6 +62,7 @@ func set_input(id: int, dir: int, fire: bool, seq: int) -> void:
 	if t == null:
 		return
 	t.ack_seq = seq
+	t.last_input = time
 	if not t.alive:
 		return
 	t.input_dir = dir if dir >= 0 and dir <= 3 else Cfg.NONE
@@ -82,6 +85,7 @@ func _respawn(t: Tank) -> void:
 	t.input_dir = Cfg.NONE
 	t.input_fire = false
 	t.slide_t = 0.0
+	t.last_input = time
 	_emit({"k": "spawn", "id": t.id})
 
 # Prefer a spawn not overlapping a living tank, farthest from the nearest one.
@@ -142,6 +146,11 @@ func step(dt: float) -> void:
 				_respawn(t)
 	for id in ids:
 		var t: Tank = tanks[id]
+		if t.alive and time - t.last_input > Cfg.INPUT_TIMEOUT_S:
+			t.input_dir = Cfg.NONE   # client went silent (stalled, hidden tab): stop driving and firing
+			t.input_fire = false
+	for id in ids:
+		var t: Tank = tanks[id]
 		if t.alive:
 			_move_tank(t, dt)
 	_update_powerups(dt)
@@ -158,22 +167,17 @@ func step(dt: float) -> void:
 	for c in map.regrow_due(time, occupied):
 		_cells.append(c)
 	if not _cells.is_empty():
+		map_rev += 1
 		_emit({"k": "cells", "c": _cells})
 		_cells = []
 
 func _move_tank(t: Tank, dt: float) -> void:
-	var r := TankMotion.step(map, t.pos, t.facing, t.input_dir, t.slide_t, dt)
-	var np: Vector2 = r.pos
-	var new_rect := Rect2(np, Vector2(Cfg.TANK_PX, Cfg.TANK_PX))
-	var old_rect := tank_rect(t)
+	var blockers := []
 	for o in tanks.values():
-		if o == t or not o.alive:
-			continue
-		var orect := tank_rect(o)
-		if new_rect.intersects(orect) and not old_rect.intersects(orect):
-			np = t.pos  # blocked by another tank (unless already overlapping: allow escape)
-			break
-	t.pos = np
+		if o != t and o.alive:
+			blockers.append(tank_rect(o))
+	var r := TankMotion.step(map, t.pos, t.facing, t.input_dir, t.slide_t, dt, blockers)
+	t.pos = r.pos
 	t.facing = r.facing
 	t.slide_t = r.slide_t
 
@@ -217,17 +221,18 @@ func _resolve_bullets() -> void:
 				if t.shield_t <= 0.0 and not kills.has(t.id):
 					kills[t.id] = b.owner
 				break
-	# 2. terrain
+	# 2. terrain: a bullet is as wide as a tank, so it tests the two cells straddling its centreline
 	for b in bullets:
 		if consumed.has(b):
 			continue
-		var cx := floori(b.pos.x / Cfg.CELL)
-		var cy := floori(b.pos.y / Cfg.CELL)
-		var tile := map.bullet_blocked_at(cx, cy)
-		if map.bullet_passes(tile):
-			continue
-		consumed[b] = true
-		_bullet_hit_terrain(b, cx, cy)
+		var pair := _bullet_pair(b)
+		var blocked := false
+		for c in pair:
+			if not map.bullet_passes(map.bullet_blocked_at(c.x, c.y)):
+				blocked = true
+		if blocked:
+			consumed[b] = true
+			_bullet_hit_terrain(b, pair)
 	# 3. bullet vs bullet
 	for i in bullets.size():
 		var a: Bullet = bullets[i]
@@ -247,16 +252,22 @@ func _resolve_bullets() -> void:
 		if v != null and v.alive:
 			_kill(v, kills[vid])
 
-# Destroys the 2-cell-wide aligned pair across the bullet's path.
-func _bullet_hit_terrain(b: Bullet, cx: int, cy: int) -> void:
-	var horizontal := b.dir == Cfg.Dir.LEFT or b.dir == Cfg.Dir.RIGHT
-	for k in 2:
-		var x := cx if horizontal else (cx - cx % 2 if cx >= 0 else cx) + k
-		var y := (cy - cy % 2 if cy >= 0 else cy) + k if horizontal else cy
-		var t := map.get_cell(x, y)
+# The two cells across the bullet's path, centred on its centreline.
+func _bullet_pair(b: Bullet) -> Array:
+	if b.dir == Cfg.Dir.LEFT or b.dir == Cfg.Dir.RIGHT:
+		var cx := floori(b.pos.x / Cfg.CELL)
+		var first := roundi((b.pos.y - Cfg.CELL) / float(Cfg.CELL))
+		return [Vector2i(cx, first), Vector2i(cx, first + 1)]
+	var cy := floori(b.pos.y / Cfg.CELL)
+	var first := roundi((b.pos.x - Cfg.CELL) / float(Cfg.CELL))
+	return [Vector2i(first, cy), Vector2i(first + 1, cy)]
+
+func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
+	for c in pair:
+		var t := map.get_cell(c.x, c.y)
 		if t == Cfg.Tile.BRICK or (t == Cfg.Tile.STEEL and b.stars >= Cfg.MAX_STARS):
-			if map.destroy(x, y, time):
-				_cells.append([x, y, Cfg.Tile.EMPTY])
+			if map.destroy(c.x, c.y, time):
+				_cells.append([c.x, c.y, Cfg.Tile.EMPTY])
 
 func drop_powerup(pos: Vector2, type: int) -> void:
 	var snapped := (pos / Cfg.CELL).round() * Cfg.CELL

@@ -35,9 +35,28 @@ var _shot_at := 0
 var _stats := false         # --stats: print how far snapshots visually move the local tank
 var _jumps: Array = []
 var _stats_ms := 0
+var applied_rev := 0       # terrain events applied; compared with the snapshot's revision
+var _mismatch := 0
+var _last_resync_ms := 0
 
 # Server state + replay of inputs the server has not acked yet.
-static func reconcile(map_: GameMap, server_pos: Vector2, facing: int, slide: float, pending_: Array, ack: int) -> Dictionary:
+static func in_sync(applied: int, snap_rev: int, roster_: Dictionary, tank_ids: Array) -> bool:
+	if applied != snap_rev:
+		return false
+	for id in tank_ids:
+		if not roster_.has(id):
+			return false
+	return true
+
+func _blockers() -> Array:
+	var out := []
+	for id in view.get("tanks", {}):
+		var t: Dictionary = view.tanks[id]
+		if id != my_id and t.alive:
+			out.append(Rect2(t.pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX)))
+	return out
+
+static func reconcile(map_: GameMap, server_pos: Vector2, facing: int, slide: float, pending_: Array, ack: int, blockers: Array = []) -> Dictionary:
 	var pos := server_pos
 	var f := facing
 	var s := slide
@@ -46,7 +65,7 @@ static func reconcile(map_: GameMap, server_pos: Vector2, facing: int, slide: fl
 		if p[0] <= ack:
 			continue
 		rest.append(p)
-		var r := TankMotion.step(map_, pos, f, p[1], s, 1.0 / Cfg.TICK_HZ)
+		var r := TankMotion.step(map_, pos, f, p[1], s, 1.0 / Cfg.TICK_HZ, blockers)
 		pos = r.pos
 		f = r.facing
 		s = r.slide_t
@@ -98,14 +117,18 @@ func _on_lost() -> void:
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 
 func on_welcome(info: Dictionary) -> void:
+	var first := not welcomed   # a resync re-welcome must not reset the input sequence
 	map = GameMap.from_bytes(info.w, info.h, info.grid)
 	roster = info.roster
 	my_id = info.you
+	applied_rev = info.get("rev", 0)
+	_mismatch = 0
 	welcomed = true
 	msg = ""
-	seq = 0
-	pending.clear()
-	_queue.clear()
+	if first:
+		seq = 0
+		pending.clear()
+		_queue.clear()
 	view = Protocol.decode_snapshot(info.snap)
 	var me: Dictionary = view.tanks.get(my_id, {})
 	if not me.is_empty():
@@ -124,6 +147,13 @@ func on_snapshot(snap: Array) -> void:
 		return
 	view = Protocol.decode_snapshot(snap)
 	snap_ms = Time.get_ticks_msec()
+	if in_sync(applied_rev, view.rev, roster, view.tanks.keys()):
+		_mismatch = 0
+	else:
+		_mismatch += 1   # events and snapshots travel separately, so allow ~0.5 s before asking for a resync
+		if _mismatch >= 15 and local_server == null and snap_ms - _last_resync_ms > 2000:
+			_last_resync_ms = snap_ms
+			net.resync.rpc_id(1)
 	var me: Dictionary = view.tanks.get(my_id, {})
 	if me.is_empty():
 		return
@@ -133,7 +163,7 @@ func on_snapshot(snap: Array) -> void:
 		my_facing = me.facing
 		my_slide = 0.0
 		return
-	var r := reconcile(map, me.pos, me.facing, me.slide, pending, me.ack)
+	var r := reconcile(map, me.pos, me.facing, me.slide, pending, me.ack, _blockers())
 	pending = r.pending
 	if _stats:
 		_jumps.append(my_pos.distance_to(r.pos if predict and local_server == null else me.pos))
@@ -152,6 +182,7 @@ func on_events(events: Array) -> void:
 	for e in events:
 		match e.k:
 			"cells":
+				applied_rev += 1
 				for c in e.c:
 					map.set_cell(c[0], c[1], c[2])
 			"kill":
@@ -216,7 +247,7 @@ func _physics_process(_delta: float) -> void:
 			pending.pop_front()
 		var me: Dictionary = view.tanks.get(my_id, {})
 		if predict and (me.is_empty() or me.alive):
-			var r := TankMotion.step(map, my_pos, my_facing, dir, my_slide, 1.0 / Cfg.TICK_HZ)
+			var r := TankMotion.step(map, my_pos, my_facing, dir, my_slide, 1.0 / Cfg.TICK_HZ, _blockers())
 			my_pos = r.pos
 			my_facing = r.facing
 			my_slide = r.slide_t

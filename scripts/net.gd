@@ -10,6 +10,11 @@ func register(nm: Variant) -> void:
 	if server:
 		server.on_register(multiplayer.get_remote_sender_id(), nm)
 
+@rpc("any_peer", "reliable")
+func resync() -> void:
+	if server:
+		server.on_resync(multiplayer.get_remote_sender_id())
+
 @rpc("any_peer", "unreliable_ordered")
 func input(seq: Variant, dir: Variant, fire: Variant) -> void:
 	if server:

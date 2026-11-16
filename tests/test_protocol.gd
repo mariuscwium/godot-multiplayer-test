@@ -24,8 +24,10 @@ func test_snapshot_roundtrip() -> void:
 	s.bullets.append(b)
 	s.drop_powerup(Vector2(64, 32), Cfg.PowerType.HELMET)
 	s.tick = 42
+	s.map_rev = 3
 	var d := Protocol.decode_snapshot(Protocol.encode_snapshot(s))
 	T.eq(d.tick, 42, "tick")
+	T.eq(d.rev, 3, "map revision")
 	var dt: Dictionary = d.tanks[7]
 	T.near(dt.pos.x, 12.3125, 1.0 / 16, "x")
 	T.near(dt.pos.y, 45.5, 1.0 / 16, "y")
@@ -78,3 +80,9 @@ func test_clean_name_cases() -> void:
 	T.eq(Protocol.clean_name("  Bob  ", 7), "Bob", "trim")
 	T.eq(Protocol.clean_name("\n\n", 7), "P7", "only control chars")
 	T.eq(Protocol.clean_name("abcdefghijk  zzz", 7), "abcdefghijk", "trim after cut")
+
+func test_clean_name_is_fast_on_huge_input() -> void:
+	var t0 := Time.get_ticks_msec()
+	var n := Protocol.clean_name("x".repeat(200000), 7)
+	T.eq(n, "x".repeat(12), "still truncated")
+	T.ok(Time.get_ticks_msec() - t0 < 100, "took %d ms" % (Time.get_ticks_msec() - t0))

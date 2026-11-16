@@ -18,10 +18,10 @@ static func encode_snapshot(sim: Sim) -> Array:
 	var powerups := PackedInt32Array()
 	for p in sim.powerups:
 		powerups.append_array([p.id, roundi(p.pos.x * FP), roundi(p.pos.y * FP), p.type, roundi(p.ttl * 1000.0)])
-	return [sim.tick, tanks, bullets, powerups]
+	return [sim.tick, tanks, bullets, powerups, sim.map_rev]
 
 static func decode_snapshot(a: Array) -> Dictionary:
-	var out := {"tick": a[0], "tanks": {}, "bullets": [], "powerups": []}
+	var out := {"tick": a[0], "tanks": {}, "bullets": [], "powerups": [], "rev": a[4]}
 	var t: PackedInt32Array = a[1]
 	for i in range(0, t.size(), TANK_INTS):
 		out.tanks[t[i]] = {
@@ -45,6 +45,7 @@ static func encode_roster(sim: Sim) -> Dictionary:
 	return r
 
 static func clean_name(raw: String, id: int) -> String:
+	raw = raw.left(64)   # bound the work: a hostile client can send megabytes
 	var s := ""
 	for i in raw.length():
 		var c := raw.unicode_at(i)

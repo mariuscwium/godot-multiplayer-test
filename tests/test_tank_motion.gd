@@ -82,3 +82,15 @@ func test_no_tunnel_large_dt() -> void:
 	for i in 30:
 		p = TankMotion.step(m, p, Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1).pos
 	T.ok(p.x <= 16.0 + 0.01, "never past the 1-cell wall, x=%f" % p.x)
+
+func test_blocker_stops_tank() -> void:
+	var m := _map(_rows(20, 8))
+	var p := Vector2(0, 16)
+	for i in 20:
+		p = TankMotion.step(m, p, Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1, [Rect2(24, 16, 16, 16)]).pos
+	T.ok(p.x <= 8.01, "stopped by the blocker, x=%f" % p.x)
+
+func test_blocker_already_overlapping_does_not_trap() -> void:
+	var m := _map(_rows(20, 8))
+	var r := TankMotion.step(m, Vector2(20, 16), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1, [Rect2(24, 16, 16, 16)])
+	T.near(r.pos.x, 26.0, 0.01, "may move out of an existing overlap")

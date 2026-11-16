@@ -214,3 +214,52 @@ func test_set_input_rejects_bad_dir() -> void:
 	T.eq(t.ack_seq, 5, "seq still acked")
 	s.set_input(99, 1, false, 1)
 	T.ok(not s.tanks.has(99), "unknown id ignored")
+
+func _fire_once(s: Sim, id: int) -> void:
+	s.set_input(id, Cfg.NONE, true, 100)
+	s.step(1.0 / 30)
+	s.set_input(id, Cfg.NONE, false, 101)
+
+func test_brick_shot_from_half_tile_offset_hits_cells_in_front() -> void:
+	var rows := _rows(20, 10)
+	for y in [0, 1, 2, 3]:
+		_put(rows, 8, y, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 8), Cfg.Dir.RIGHT)   # spans rows 1-2, centreline on the row 1/2 boundary
+	_fire_once(s, 1)
+	_run(s, 1.0)
+	T.eq(s.map.get_cell(8, 1), Cfg.Tile.EMPTY, "row 1 destroyed")
+	T.eq(s.map.get_cell(8, 2), Cfg.Tile.EMPTY, "row 2 destroyed")
+	T.eq(s.map.get_cell(8, 0), Cfg.Tile.BRICK, "row 0 intact")
+	T.eq(s.map.get_cell(8, 3), Cfg.Tile.BRICK, "row 3 intact")
+
+func test_brick_in_one_column_of_the_tank_is_hit() -> void:
+	var rows := _rows(12, 10)
+	_put(rows, 3, 2, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(24, 48), Cfg.Dir.UP)    # spans columns 3-4
+	_fire_once(s, 1)
+	_run(s, 1.0)
+	T.eq(s.map.get_cell(3, 2), Cfg.Tile.EMPTY, "the brick in the left column is shot, not flown past")
+	T.eq(s.bullets.size(), 0, "bullet consumed")
+
+func test_map_rev_counts_terrain_events() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "B")
+	_put(rows, 8, 3, "B")
+	var s := _sim(rows)
+	T.eq(s.map_rev, 0, "starts at 0")
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_fire_once(s, 1)
+	_run(s, 1.0)
+	T.eq(s.map_rev, 1, "one cells event so far")
+
+func test_input_times_out() -> void:
+	var s := _sim(_rows(40, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	s.set_input(1, Cfg.Dir.RIGHT, true, 1)
+	_run(s, 0.4)
+	T.eq(t.input_dir, Cfg.Dir.RIGHT, "still held at 0.4s")
+	_run(s, 0.3)
+	T.eq(t.input_dir, Cfg.NONE, "released after the timeout")
+	T.eq(t.input_fire, false, "fire released too")

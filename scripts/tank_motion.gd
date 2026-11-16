@@ -35,7 +35,21 @@ static func _advance(map: GameMap, pos: Vector2, dir: int, dist: float) -> Vecto
 		return pos + v * lo
 	return pos
 
-static func step(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_t: float, dt: float) -> Dictionary:
+# blockers: rects of other tanks. A move that newly overlaps one is refused; an existing overlap
+# (e.g. a tank spawned on top of another) never traps you.
+static func step(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_t: float, dt: float, blockers: Array = []) -> Dictionary:
+	var r := _step_map(map, pos, facing, input_dir, slide_t, dt)
+	if blockers.is_empty():
+		return r
+	var old := Rect2(pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX))
+	var moved := Rect2(r.pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX))
+	for b in blockers:
+		if moved.intersects(b) and not old.intersects(b):
+			r.pos = pos
+			break
+	return r
+
+static func _step_map(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_t: float, dt: float) -> Dictionary:
 	if input_dir == Cfg.NONE:
 		if slide_t > 0.0:
 			var t := minf(dt, slide_t)

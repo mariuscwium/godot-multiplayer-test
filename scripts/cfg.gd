@@ -18,6 +18,7 @@ const REGROW_MAX := 60.0
 const MAX_STARS := 3
 const ICE_SLIDE_S := 0.25
 const GRENADE_CELLS := 6
+const INPUT_TIMEOUT_S := 0.5   # a client silent this long is treated as having released everything
 const PORT := 7777
 const NONE := -1
 

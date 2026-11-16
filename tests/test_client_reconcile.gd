@@ -32,3 +32,15 @@ func test_replay_respects_walls() -> void:
 func test_replay_updates_facing() -> void:
 	var r := Client.reconcile(_open(), Vector2(20, 16), Cfg.Dir.UP, 0.0, [[1, Cfg.Dir.RIGHT]], 0)
 	T.eq(r.facing, Cfg.Dir.RIGHT, "facing follows replayed input")
+
+func test_replay_respects_blockers() -> void:
+	var blockers := [Rect2(40, 16, 16, 16)]
+	var r := Client.reconcile(_open(), Vector2(20, 16), Cfg.Dir.RIGHT, 0.0,
+		[[1, Cfg.Dir.RIGHT], [2, Cfg.Dir.RIGHT], [3, Cfg.Dir.RIGHT], [4, Cfg.Dir.RIGHT], [5, Cfg.Dir.RIGHT],
+		[6, Cfg.Dir.RIGHT], [7, Cfg.Dir.RIGHT], [8, Cfg.Dir.RIGHT], [9, Cfg.Dir.RIGHT], [10, Cfg.Dir.RIGHT]], 0, blockers)
+	T.ok(r.pos.x <= 24.01, "prediction does not walk through another tank, x=%f" % r.pos.x)
+
+func test_in_sync() -> void:
+	T.ok(Client.in_sync(4, 4, {1: "a", 2: "b"}, [1, 2]), "same revision, known tanks")
+	T.ok(not Client.in_sync(3, 4, {1: "a"}, [1]), "missed a terrain event")
+	T.ok(not Client.in_sync(4, 4, {1: "a"}, [1, 2]), "tank missing from the roster")
