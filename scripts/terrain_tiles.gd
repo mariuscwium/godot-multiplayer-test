@@ -6,12 +6,12 @@ const TILE_PX := 16
 const GROUND := 0
 const BRICK := 1
 const STEEL := 2
-const WATER0 := 3      # water uses 3 frames: 3, 4, 5
+const WATER0 := 3      # water alternates frames 3 and 4 (tile 5 is a deeper shade, kept in the strip but unused)
 const ICE := 6
 const BUSH := 7
 
 static func water_index(t: float) -> int:
-	return WATER0 + int(t * 4.0) % 3
+	return WATER0 + int(t * 3.0) % 2
 
 static func index_for(terrain: int, t: float) -> int:
 	match terrain:

@@ -18,3 +18,11 @@ func test_hue_distinct_for_first_20_ids() -> void:
 func test_hp_colors_differ_by_health() -> void:
 	T.ok(Render.hp_color(3) != Render.hp_color(2), "3 vs 2")
 	T.ok(Render.hp_color(2) != Render.hp_color(1), "2 vs 1")
+
+func test_terrain_texture_filters_only_itself() -> void:
+	# nearest filtering lives on the texture, not the Render node, so name tags keep smooth text
+	var tex := Render.load_terrain_texture()
+	T.ok(tex is CanvasTexture, "wrapped in a CanvasTexture")
+	if tex is CanvasTexture:
+		T.eq(tex.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "tile art stays crisp")
+		T.eq(tex.get_size(), Vector2(128, 16), "the packed strip")

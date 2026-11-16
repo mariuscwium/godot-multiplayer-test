@@ -7,6 +7,16 @@ const C := Cfg.CELL
 var client: Client
 var tiles: Texture2D
 
+# Nearest filtering is set on the texture, not on this node, so name tags keep smooth text.
+static func load_terrain_texture() -> Texture2D:
+	var base := load("res://assets/terrain.png") as Texture2D
+	if base == null:
+		return null
+	var ct := CanvasTexture.new()
+	ct.diffuse_texture = base
+	ct.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	return ct
+
 static func hp_color(hp: int) -> Color:
 	return Color("3ddc4a") if hp >= 3 else (Color("f2c21b") if hp == 2 else Color("e5392b"))
 
@@ -15,8 +25,7 @@ static func hue_for(id: int) -> float:
 
 func _ready() -> void:
 	client = get_parent()
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixels crisp at the ~3x camera zoom
-	tiles = load("res://assets/terrain.png")
+	tiles = load_terrain_texture()
 	if tiles == null:
 		push_error("assets/terrain.png is missing or not imported (run: godot --headless --path . --import)")
 		get_tree().quit(1)

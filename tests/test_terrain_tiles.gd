@@ -12,9 +12,9 @@ func test_negative_cells_use_positive_modulo() -> void:
 
 func test_water_frames_cycle() -> void:
 	T.eq(TerrainTiles.water_index(0.0), 3, "frame 0")
-	T.eq(TerrainTiles.water_index(0.25), 4, "frame 1")
-	T.eq(TerrainTiles.water_index(0.5), 5, "frame 2")
-	T.eq(TerrainTiles.water_index(0.75), 3, "wraps to frame 0")
+	T.eq(TerrainTiles.water_index(0.34), 4, "frame 1")
+	T.eq(TerrainTiles.water_index(0.67), 3, "back to frame 0: only the two matching wave frames, never the darker third tile")
+	T.eq(TerrainTiles.water_index(1.01), 4, "keeps alternating")
 
 func test_index_for() -> void:
 	T.eq(TerrainTiles.index_for(Cfg.Tile.EMPTY, 0.0), TerrainTiles.GROUND, "empty is ground")
@@ -22,7 +22,7 @@ func test_index_for() -> void:
 	T.eq(TerrainTiles.index_for(Cfg.Tile.STEEL, 0.0), TerrainTiles.STEEL, "steel")
 	T.eq(TerrainTiles.index_for(Cfg.Tile.BUSH, 0.0), TerrainTiles.BUSH, "bush")
 	T.eq(TerrainTiles.index_for(Cfg.Tile.ICE, 0.0), TerrainTiles.ICE, "ice")
-	T.eq(TerrainTiles.index_for(Cfg.Tile.WATER, 0.25), 4, "water follows the clock")
+	T.eq(TerrainTiles.index_for(Cfg.Tile.WATER, 0.34), 4, "water follows the clock")
 
 func test_terrain_png_is_packed() -> void:
 	var tex := load("res://assets/terrain.png") as Texture2D   # needs the import step; same path the game uses
