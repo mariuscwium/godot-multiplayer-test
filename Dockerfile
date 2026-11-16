@@ -8,5 +8,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && unzip -q /tmp/g.zip -d /tmp && mv /tmp/Godot_v${GODOT}_linux.${A} /usr/local/bin/godot && rm /tmp/g.zip
 WORKDIR /app
 COPY project.godot main.tscn main.gd ./
-EXPOSE 7777/udp
+EXPOSE 7777/udp 7777/tcp
 CMD ["godot", "--headless", "--path", "/app", "--", "--server"]

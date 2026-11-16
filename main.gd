@@ -1,5 +1,7 @@
 extends Node2D
-# Run: --host (host + play) | --server (dedicated, no player) | --join [ip] (no ip = find host on LAN)
+# Run: --host (host + play) | --server (dedicated, no player) | --join [ip|ws(s)://url] (none = find host on LAN)
+# Add --ws to host/server for WebSocket instead of ENet (browser clients; put TLS proxy/tunnel in front).
+# Web export reads ?server=wss://...&name=... from the page URL.
 # Arrows move (client sends input, server simulates). Click = shoot. Enter = chat. R = ready. --name=X sets your name.
 
 const PORT := 7777
@@ -229,10 +231,15 @@ func _hit(p, killer: int) -> void:
 			if k.score >= WIN:
 				_end_round(k)
 
-func _connect(ip: String) -> void:
-	var peer := ENetMultiplayerPeer.new()
-	peer.create_client(ip, PORT)
-	multiplayer.multiplayer_peer = peer
+func _connect(target: String) -> void:
+	if target.begins_with("ws://") or target.begins_with("wss://"):
+		var ws := WebSocketMultiplayerPeer.new()
+		ws.create_client(target)
+		multiplayer.multiplayer_peer = ws
+	else:
+		var peer := ENetMultiplayerPeer.new()
+		peer.create_client(target, PORT)
+		multiplayer.multiplayer_peer = peer
 
 func _discovery(delta: float) -> void:
 	if announcer:
@@ -359,24 +366,33 @@ func _ready() -> void:
 		if a.begins_with("--name="):
 			my_name = a.substr(7)
 	if "--host" in args or "--server" in args:
-		var peer := ENetMultiplayerPeer.new()
+		var peer: MultiplayerPeer = WebSocketMultiplayerPeer.new() if "--ws" in args else ENetMultiplayerPeer.new()
 		peer.create_server(PORT)
 		multiplayer.multiplayer_peer = peer
 		multiplayer.peer_disconnected.connect(_on_peer_left)
 		if "--server" in args:
-			print("dedicated server listening on UDP %d" % PORT)
+			print("dedicated server listening on %s %d" % ["TCP (WebSocket)" if "--ws" in args else "UDP", PORT])
 		else:
 			player_spawner.spawn([1, _clean(my_name, 1)])
 		announcer = PacketPeerUDP.new()
 		announcer.set_broadcast_enabled(true)
 		announcer.set_dest_address("255.255.255.255", DISC_PORT)
-	elif "--join" in args:
+	elif "--join" in args or OS.has_feature("web"):
 		multiplayer.connected_to_server.connect(func(): register.rpc_id(1, my_name))
 		multiplayer.connection_failed.connect(_on_failed)
 		multiplayer.server_disconnected.connect(_on_lost)
-		var i := args.find("--join")
-		if args.size() > i + 1 and not args[i + 1].begins_with("--"):
-			_connect(args[i + 1])
+		var target := ""  # "" = discover on LAN
+		if OS.has_feature("web"):
+			target = str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('server') || ''"))
+			my_name = str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('name') || ''"))
+		else:
+			var i := args.find("--join")
+			if args.size() > i + 1 and not args[i + 1].begins_with("--"):
+				target = args[i + 1]
+		if target != "":
+			_connect(target)
+		elif OS.has_feature("web"):
+			msg = "Add ?server=wss://your-host to the page URL"  # browsers can't do UDP discovery
 		else:
 			finder = PacketPeerUDP.new()
 			finder.bind(DISC_PORT)
