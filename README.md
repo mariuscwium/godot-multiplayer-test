@@ -18,6 +18,16 @@ Add `--ws` to `--server`/`--host` for WebSocket (TCP 7777) instead of UDP. Clien
 tools/test.sh [filter]     # headless unit tests (tests/test_*.gd)
 ```
 
+## Lag test (`--stats`)
+`--stats` prints how far each server snapshot visually moves the local tank. A bot client with `--lag=120 --loss=0.05` against a server with three other bots (45 s each, 150 snapshots per 5 s):
+
+| | p50 | p95 | max |
+|---|---|---|---|
+| prediction on | 0 px | 2 px | 4 px |
+| `--nopredict` | 2 px | 2-4.5 px | 4.5 px |
+
+With prediction the tank never visibly snaps by more than half a cell (8 px = 1 cell). Without it the jump sizes look similar, but your own tank only responds after the full round trip (~120+ ms here), which is what prediction hides.
+
 ## Online (GitHub Pages + Cloudflare tunnel)
 1. Web export (single-threaded, so GitHub Pages needs no special headers):
    ```

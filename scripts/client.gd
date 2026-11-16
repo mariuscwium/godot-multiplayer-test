@@ -32,6 +32,9 @@ var _queue: Array = []
 var _held: Array = []      # direction keys in press order; last pressed wins
 var _shot := ""           # --shot=<png>: save a screenshot 6s after joining, then quit (verification aid)
 var _shot_at := 0
+var _stats := false         # --stats: print how far snapshots visually move the local tank
+var _jumps: Array = []
+var _stats_ms := 0
 
 # Server state + replay of inputs the server has not acked yet.
 static func reconcile(map_: GameMap, server_pos: Vector2, facing: int, slide: float, pending_: Array, ack: int) -> Dictionary:
@@ -58,6 +61,7 @@ func _ready() -> void:
 			bot = true
 			_bot_rng.randomize()
 		if a.begins_with("--shot="): _shot = a.substr(7)
+		if a == "--stats": _stats = true
 	cam = Camera2D.new()
 	add_child(cam)
 	add_child(Render.new())
@@ -131,6 +135,8 @@ func on_snapshot(snap: Array) -> void:
 		return
 	var r := reconcile(map, me.pos, me.facing, me.slide, pending, me.ack)
 	pending = r.pending
+	if _stats:
+		_jumps.append(my_pos.distance_to(r.pos if predict and local_server == null else me.pos))
 	if predict and local_server == null:
 		my_pos = r.pos
 		my_facing = r.facing
@@ -242,6 +248,12 @@ func _process(delta: float) -> void:
 		if not view.tanks.has(id):
 			shown.erase(id)
 	var now := Time.get_ticks_msec()
+	if _stats and now > _stats_ms and not _jumps.is_empty():
+		_stats_ms = now + 5000
+		var sorted := _jumps.duplicate()
+		sorted.sort()
+		print("snapshot jump px: n=%d p50=%.2f p95=%.2f max=%.2f" % [sorted.size(), sorted[sorted.size() / 2], sorted[int(sorted.size() * 0.95)], sorted[-1]])
+		_jumps.clear()
 	if _shot != "" and _shot_at > 0 and now > _shot_at:
 		get_viewport().get_texture().get_image().save_png(_shot)
 		print("screenshot saved: %s" % _shot)
