@@ -49,7 +49,7 @@ func _process(_d: float) -> void:
 	board.text = "\n".join(lines)
 	board.position = Vector2(vp.x - board.size.x - 8, 8)
 	var me: Dictionary = client.view.tanks.get(client.my_id, {})
-	mine.text = "" if me.is_empty() else "HP %d/%d   KILLS %d   STARS %d" % [me.hp, Cfg.MAX_HP, me.kills, me.stars]
+	mine.text = "" if me.is_empty() else "HP %d/%d   KILLS %d   STARS %d" % [me.hp, Cfg.max_hp_for(me.stars), me.kills, me.stars]
 	mine.position = Vector2(8, vp.y - mine.size.y - 8)
 	feed.text = "\n".join(client.feed.map(func(f): return f[0]))
 	var alive: bool = me.is_empty() or me.alive

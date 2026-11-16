@@ -88,3 +88,12 @@ func test_clean_name_is_fast_on_huge_input() -> void:
 	var n := Protocol.clean_name("x".repeat(200000), 7)
 	T.eq(n, "x".repeat(12), "still truncated")
 	T.ok(Time.get_ticks_msec() - t0 < 100, "took %d ms" % (Time.get_ticks_msec() - t0))
+
+func test_upgraded_hp_survives_the_snapshot() -> void:
+	var s := _sim()
+	s.add_tank(1, "a")
+	s.tanks[1].stars = 3
+	s.tanks[1].hp = 6
+	var d := Protocol.decode_snapshot(Protocol.encode_snapshot(s))
+	T.eq(d.tanks[1].hp, 6, "6 hp fits the packed field")
+	T.eq(d.tanks[1].stars, 3, "stars")

@@ -386,3 +386,33 @@ func test_a_shielded_hit_does_not_interrupt_healing() -> void:
 	_run(s, Cfg.HEAL_DELAY_S + Cfg.HEAL_INTERVAL_S - 2.0 + 1.0)
 	T.eq(b.hp, 3, "healed on schedule despite absorbing a bullet")
 	T.ok(a.alive, "shooter unaffected")
+
+func test_max_hp_grows_with_stars() -> void:
+	T.eq(Cfg.max_hp_for(0), 3, "base")
+	T.eq(Cfg.max_hp_for(1), 4, "one star")
+	T.eq(Cfg.max_hp_for(3), 6, "three stars")
+	T.eq(Cfg.max_hp_for(9), 6, "capped")
+	T.eq(Cfg.max_hp_for(-1), 3, "never below base")
+
+func test_healing_goes_up_to_the_upgraded_maximum() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.stars = 2
+	t.hp = 3
+	_run(s, Cfg.HEAL_DELAY_S + 6.0 * Cfg.HEAL_INTERVAL_S)
+	T.eq(t.hp, 5, "heals to 3 + 2 stars, not beyond")
+
+func test_respawn_resets_to_base_hp_and_stars() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 10, 5, "P")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	b.stars = 2
+	_fire_once(s, 1)
+	_run(s, 0.5)
+	T.ok(not b.alive, "dead")
+	_run(s, 2.0)
+	T.ok(b.alive, "respawned")
+	T.eq(b.stars, 0, "stars reset")
+	T.eq(b.hp, Cfg.MAX_HP, "back to the base maximum")

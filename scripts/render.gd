@@ -26,8 +26,11 @@ static func load_terrain_texture() -> Texture2D:
 static func is_moving(prev: Variant, now: Vector2) -> bool:
 	return prev != null and prev.distance_to(now) >= 0.05
 
-static func hp_color(hp: int) -> Color:
-	return Color("3ddc4a") if hp >= 3 else (Color("f2c21b") if hp == 2 else Color("e5392b"))
+static func hp_color(hp: int, max_hp: int) -> Color:
+	# by fraction of max: healthy above 2/3, hurt above 1/3, otherwise critical
+	if hp * 3 > max_hp * 2:
+		return Color("3ddc4a")
+	return Color("f2c21b") if hp * 3 > max_hp else Color("e5392b")
 
 static func hue_for(id: int) -> float:
 	return fmod(absf(float(id)) * 0.61803398875, 1.0)
@@ -98,8 +101,12 @@ func _draw_tank(id: int, pos: Vector2, tk: Dictionary, t: float, mine := false) 
 	draw_texture_rect_region(tanks, Rect2(-8, -8, Cfg.TANK_PX, Cfg.TANK_PX), TankSprite.src_rect(tk.stars, frame),
 		Color.from_hsv(hue_for(id), 0.55, 1.0))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	for i in Cfg.MAX_HP:   # health bar under the tank: one segment per hit it can take
-		draw_rect(Rect2(pos + Vector2(i * 6, 18), Vector2(4, 2)), hp_color(tk.hp) if i < tk.hp else Color(0.25, 0.25, 0.25))
+	var max_hp := Cfg.max_hp_for(tk.stars)   # health bar under the tank: one equal segment per hit it can take
+	var seg := clampi((18 - (max_hp - 1)) / max_hp, 2, 5)
+	var x_start := (Cfg.TANK_PX - (max_hp * seg + (max_hp - 1))) / 2
+	for i in max_hp:
+		draw_rect(Rect2(pos + Vector2(x_start + i * (seg + 1), 18), Vector2(seg, 2)),
+			hp_color(tk.hp, max_hp) if i < tk.hp else Color(0.25, 0.25, 0.25))
 	if tk.shield and int(t * 10.0) % 2 == 0:
 		draw_rect(Rect2(pos - Vector2(1, 1), Vector2(18, 18)), Color(1, 1, 1, 0.9), false, 1.0)
 	var nm: String = client.roster.get(id, "")

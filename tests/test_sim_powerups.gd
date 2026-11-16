@@ -122,3 +122,28 @@ func test_dead_tank_cannot_pickup() -> void:
 	s.step(1.0 / 30)
 	T.eq(t.stars, 0, "no pickup while dead")
 	T.eq(s.powerups.size(), 1, "still on the ground")
+
+func test_star_pickup_raises_max_hp_and_heals_one() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	t.hp = 3
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.STAR)
+	s.step(1.0 / 30)
+	T.eq(t.stars, 1, "star")
+	T.eq(t.hp, 4, "full health tank gets the extra point at once")
+	t.hp = 2
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.STAR)
+	s.step(1.0 / 30)
+	T.eq(t.stars, 2, "second star")
+	T.eq(t.hp, 3, "a damaged tank also gains one point (2 -> 3 of 5)")
+
+func test_star_at_max_stars_gives_no_hp() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	t.stars = 3
+	t.hp = Cfg.max_hp_for(3)
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.STAR)
+	s.step(1.0 / 30)
+	T.eq(t.stars, 3, "capped")
+	T.eq(t.hp, 6, "no further hp")
+	T.eq(s.powerups.size(), 0, "still consumed")

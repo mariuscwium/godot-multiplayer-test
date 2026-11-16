@@ -145,7 +145,7 @@ func step(dt: float) -> void:
 	for id in ids:
 		var t: Tank = tanks[id]
 		t.shield_t = maxf(0.0, t.shield_t - dt)
-		if t.alive and t.hp < Cfg.MAX_HP and time - t.last_hit >= Cfg.HEAL_DELAY_S:
+		if t.alive and t.hp < Cfg.max_hp_for(t.stars) and time - t.last_hit >= Cfg.HEAL_DELAY_S:
 			t.heal_t += dt
 			if t.heal_t >= Cfg.HEAL_INTERVAL_S:
 				t.hp += 1
@@ -319,7 +319,9 @@ func _update_powerups(dt: float) -> void:
 func _apply_powerup(t: Tank, type: int) -> void:
 	match type:
 		Cfg.PowerType.STAR:
-			t.stars = mini(t.stars + 1, Cfg.MAX_STARS)
+			if t.stars < Cfg.MAX_STARS:
+				t.stars += 1
+				t.hp += 1   # the new maximum comes with the extra point straight away
 		Cfg.PowerType.HELMET:
 			t.shield_t = Cfg.HELMET_S
 		Cfg.PowerType.GRENADE:

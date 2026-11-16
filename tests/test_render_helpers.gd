@@ -16,8 +16,13 @@ func test_hue_distinct_for_first_20_ids() -> void:
 			T.ok(d > 0.02, "ids %d and %d too similar (%f)" % [a, b, d])
 
 func test_hp_colors_differ_by_health() -> void:
-	T.ok(Render.hp_color(3) != Render.hp_color(2), "3 vs 2")
-	T.ok(Render.hp_color(2) != Render.hp_color(1), "2 vs 1")
+	T.ok(Render.hp_color(3, 3) != Render.hp_color(2, 3), "3 vs 2")
+	T.ok(Render.hp_color(2, 3) != Render.hp_color(1, 3), "2 vs 1")
+
+func test_hp_color_follows_the_fraction_of_max() -> void:
+	T.eq(Render.hp_color(5, 6), Render.hp_color(3, 3), "5/6 reads healthy")
+	T.eq(Render.hp_color(3, 6), Render.hp_color(2, 3), "3/6 reads hurt")
+	T.eq(Render.hp_color(2, 6), Render.hp_color(1, 3), "2/6 reads critical")
 
 func test_terrain_texture_filters_only_itself() -> void:
 	# nearest filtering lives on the texture, not the Render node, so name tags keep smooth text
