@@ -7,7 +7,7 @@ const C := Cfg.CELL
 var client: Client
 var tiles: Texture2D
 var tanks: Texture2D
-var boom: Texture2D
+var fx_tex := {}         # effect kind -> texture
 var _last_pos := {}      # tank id -> position drawn last frame
 var _moved_ms := {}      # tank id -> when it last moved (treads keep rolling between 30 Hz updates)
 
@@ -40,8 +40,11 @@ func _ready() -> void:
 	client = get_parent()
 	tiles = load_terrain_texture()
 	tanks = load_nearest_texture("res://assets/tanks.png")
-	boom = load_nearest_texture("res://assets/fx/explosion_small.png")
-	if tiles == null or tanks == null or boom == null:
+	var fx_ok := true
+	for kind in Effects.DEFS:
+		fx_tex[kind] = load_nearest_texture(Effects.DEFS[kind].path)
+		fx_ok = fx_ok and fx_tex[kind] != null
+	if tiles == null or tanks == null or not fx_ok:
 		push_error("a texture in assets/ is missing or not imported (run: godot --headless --path . --import)")
 		get_tree().quit(1)
 
@@ -88,17 +91,20 @@ func _draw() -> void:
 		var mine := me.duplicate()
 		mine.facing = client.my_facing  # predicted facing, not the older snapshot's
 		_draw_tank(client.my_id, client.my_pos, mine, t, true)
-	_draw_explosions()
+	_draw_effects()
 
-# Tank-destroyed explosions play on top of everything in the world, bushes included.
-func _draw_explosions() -> void:
+# Effect animations play on top of everything in the world, bushes included.
+func _draw_effects() -> void:
 	var now := Time.get_ticks_msec()
 	for f in client.fx:
-		var frame := ExplosionFx.frame_at((now - f.born_ms) / 1000.0)
-		if frame >= 0:
-			var half := ExplosionFx.FRAME_PX * 0.5
-			draw_texture_rect_region(boom, Rect2(f.pos - Vector2(half, half), Vector2(ExplosionFx.FRAME_PX, ExplosionFx.FRAME_PX)),
-				ExplosionFx.src_rect(frame))
+		var frame := Effects.frame_at(f.kind, (now - f.born_ms) / 1000.0)
+		if frame < 0:
+			continue
+		var d: Dictionary = Effects.DEFS[f.kind]
+		var half: float = d.size * 0.5
+		draw_set_transform(f.pos, f.rot + d.base_angle, Vector2.ONE)
+		draw_texture_rect_region(fx_tex[f.kind], Rect2(-half, -half, d.size, d.size), Effects.src_rect(f.kind, frame))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 # One 8 px cell, drawn from the matching quarter of its 16x16 tile.
 func _draw_cell(index: int, cx: int, cy: int) -> void:

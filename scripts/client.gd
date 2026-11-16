@@ -15,7 +15,7 @@ var snap_ms := 0
 var welcomed := false
 var msg := ""              # connection problems / status for the HUD
 var feed: Array = []       # [text, expires_ms] kill feed
-var fx: Array = []         # active explosions: {pos, born_ms}
+var fx: Array = []         # active effects: {kind, pos, rot, born_ms}
 var shake_start_ms := -1   # when the current kill-shake began (-1: none)
 var _shake_rng := RandomNumberGenerator.new()
 var shown := {}            # id -> smoothed position of remote tanks
@@ -190,18 +190,28 @@ func on_events(events: Array) -> void:
 				for c in e.c:
 					map.set_cell(c[0], c[1], c[2])
 			"kill":
-				fx.append({"pos": e.get("pos", Vector2.ZERO), "born_ms": Time.get_ticks_msec()})
+				_add_fx("tank_explosion", e.get("pos", Vector2.ZERO), 0.0)
 				if e.killer == my_id:
 					shake_start_ms = Time.get_ticks_msec()   # you scored it: shake the screen a little
 				feed.append(["%s > %s" % [roster.get(e.killer, "?"), roster.get(e.victim, "?")], Time.get_ticks_msec() + 5000])
+			"fx":
+				if typeof(e.get("fx")) == TYPE_STRING and typeof(e.get("pos")) == TYPE_VECTOR2:
+					_add_fx(e.fx, e.pos, float(e.get("rot", 0.0)))
 			"join":
 				roster[e.id] = e.name
 			"leave":
 				roster.erase(e.id)
 				shown.erase(e.id)
 
+func _add_fx(kind: String, pos: Vector2, rot: float) -> void:
+	if not Effects.has(kind):
+		return
+	fx.append({"kind": kind, "pos": pos, "rot": rot, "born_ms": Time.get_ticks_msec()})
+	while fx.size() > 64:
+		fx.pop_front()
+
 func prune_fx(now_ms: int) -> void:
-	fx = fx.filter(func(f): return now_ms - f.born_ms < int(ExplosionFx.DURATION_S * 1000.0))
+	fx = fx.filter(func(f): return now_ms - f.born_ms < int(Effects.duration(f.kind) * 1000.0))
 
 func _input(e: InputEvent) -> void:
 	if e is InputEventKey and not e.echo:

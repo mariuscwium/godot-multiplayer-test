@@ -80,6 +80,10 @@ func drain_events() -> Array:
 func _emit(e: Dictionary) -> void:
 	_events.append(e)
 
+# Ask every client to play an effect animation (see Effects) centred at pos, rotated by rot (radians, 0 = up).
+func _fx(kind: String, pos: Vector2, rot: float = 0.0) -> void:
+	_emit({"k": "fx", "fx": kind, "pos": pos, "rot": rot})
+
 func _respawn(t: Tank) -> void:
 	t.pos = _pick_spawn(t)
 	t.facing = Cfg.Dir.UP
