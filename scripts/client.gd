@@ -26,6 +26,8 @@ var loss := 0.0
 var predict := true
 var bot := false
 var cam: Camera2D
+var _bot_rng := RandomNumberGenerator.new()
+var _bot_pause := 0
 var _queue: Array = []
 var _held: Array = []      # direction keys in press order; last pressed wins
 var _shot := ""           # --shot=<png>: save a screenshot 6s after joining, then quit (verification aid)
@@ -52,7 +54,9 @@ func _ready() -> void:
 		if a.begins_with("--lag="): lag_ms = int(a.substr(6))
 		if a.begins_with("--loss="): loss = float(a.substr(7))
 		if a == "--nopredict": predict = false
-		if a == "--bot": bot = true
+		if a == "--bot":
+			bot = true
+			_bot_rng.randomize()
 		if a.begins_with("--shot="): _shot = a.substr(7)
 	cam = Camera2D.new()
 	add_child(cam)
@@ -171,9 +175,28 @@ func _notification(what: int) -> void:
 
 func _read_input() -> Dictionary:
 	if bot:
-		return {"dir": Cfg.Dir.RIGHT, "fire": true}  # replaced by Bot in a later task
+		return _bot_input()
 	var fire := Input.is_key_pressed(KEY_SPACE) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 	return {"dir": _held.back() if not _held.is_empty() else Cfg.NONE, "fire": fire}
+
+# AI input with human-ish flaws: occasional freezes and skipped shots, so it can be beaten.
+func _bot_input() -> Dictionary:
+	var me: Dictionary = view.tanks.get(my_id, {})
+	if me.is_empty() or not me.alive:
+		return {"dir": Cfg.NONE, "fire": false}
+	if _bot_pause > 0:
+		_bot_pause -= 1
+		return {"dir": Cfg.NONE, "fire": false}
+	if _bot_rng.randf() < 0.01:
+		_bot_pause = 8
+	var others := []
+	for id in view.tanks:
+		if id != my_id:
+			others.append({"pos": shown.get(id, view.tanks[id].pos), "alive": view.tanks[id].alive})
+	var r := Bot.decide(map, {"pos": my_pos, "facing": my_facing}, others, _bot_rng)
+	if r.fire and _bot_rng.randf() < 0.3:
+		r.fire = false
+	return r
 
 func _physics_process(_delta: float) -> void:
 	if not welcomed:
