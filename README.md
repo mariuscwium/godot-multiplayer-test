@@ -55,7 +55,7 @@ docker run -d --restart unless-stopped -p 7777:7777/udp -e SERVER_ARGS="" godot-
 LAN discovery (UDP 7778 broadcast) doesn't cross Docker's network or routers; join by IP.
 
 ## Layout
-`scripts/sim.gd` holds the authoritative game rules and is pure logic (no nodes); `scripts/tank_motion.gd` is the movement step shared by the server and the client's prediction. `server.gd`, `client.gd`, `net.gd` (all RPCs) do the networking; `render.gd`/`hud.gd` draw. Design and plan: `docs/superpowers/`.
+`scripts/sim.gd` holds the authoritative game rules and is pure logic (no nodes); `scripts/tank_motion.gd` is the movement step shared by the server and the client's prediction. `server.gd`, `client.gd`, `net.gd` (all RPCs) do the networking; `render.gd`/`hud.gd` draw. The level is designed on a 40x40 grid of blocks in `maps/arena-blocks.txt` (`.` ground, `B` brick, `S` steel, `W` water, `I` ice, `G` bush, `P` spawn); `python3 -I tools/blocks_to_arena.py` expands it to the 80x80 cell map `maps/arena.txt` that the game loads. Design and plan: `docs/superpowers/`.
 
 ## Credits
 Terrain tiles (`assets/terrain.png`, 8 tiles cut from the 16x16 atlas by `tools/pack_terrain.gd`) are from [Textures by piiixl](https://piiixl.itch.io/textures): free for commercial use in games and projects, not for resale or redistribution as-is, so the original pack is not included here. Tank sprites (`assets/source/tank-sprite-sheet.png`, cut into `assets/tanks.png` by `tools/pack_tanks.gd`) were generated with ChatGPT for this project.

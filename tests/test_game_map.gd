@@ -71,3 +71,42 @@ func test_arena_loads() -> void:
 	T.ok(sp.size() >= 20, "at least 20 spawns, got %d" % sp.size())
 	for p in sp:
 		T.ok(not m.tank_blocked(Rect2(p, Vector2(16, 16))), "spawn %s free" % str(p))
+
+func test_arena_is_built_from_2x2_blocks() -> void:
+	# the level is designed on a 40x40 grid of blocks; each block is 2x2 cells (a spawn marks its top-left cell)
+	var lines := FileAccess.get_file_as_string("res://maps/arena.txt").strip_edges().split("\n")
+	T.eq(lines.size(), 80, "80 cell rows")
+	var bad := 0
+	for by in 40:
+		for bx in 40:
+			var tl: String = lines[by * 2][bx * 2]
+			if tl == "P":
+				tl = "."
+			for dy in 2:
+				for dx in 2:
+					var c: String = lines[by * 2 + dy][bx * 2 + dx]
+					if c == "P":
+						c = "."
+					if c != tl:
+						bad += 1
+	T.eq(bad, 0, "every 2x2 cell group is one block type")
+
+func test_arena_has_24_spawns_and_is_connected() -> void:
+	var m := GameMap.from_text(FileAccess.get_file_as_string("res://maps/arena.txt"))
+	T.eq(m.spawn_points().size(), 24, "24 spawn points")
+	# flood fill over cells a tank can stand on if it were to pass bricks (steel and water are permanent)
+	var start: Vector2 = m.spawn_points()[0]
+	var seen := {}
+	var stack := [Vector2i(int(start.x / Cfg.CELL), int(start.y / Cfg.CELL))]
+	while not stack.is_empty():
+		var c: Vector2i = stack.pop_back()
+		if seen.has(c):
+			continue
+		var t := m.get_cell(c.x, c.y)
+		if t == Cfg.Tile.STEEL or t == Cfg.Tile.WATER:
+			continue
+		seen[c] = true
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			stack.append(c + d)
+	for p in m.spawn_points():
+		T.ok(seen.has(Vector2i(int(p.x / Cfg.CELL), int(p.y / Cfg.CELL))), "spawn %s reachable from spawn 0" % str(p))
