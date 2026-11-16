@@ -28,6 +28,8 @@ var bot := false
 var cam: Camera2D
 var _queue: Array = []
 var _held: Array = []      # direction keys in press order; last pressed wins
+var _shot := ""           # --shot=<png>: save a screenshot 6s after joining, then quit (verification aid)
+var _shot_at := 0
 
 # Server state + replay of inputs the server has not acked yet.
 static func reconcile(map_: GameMap, server_pos: Vector2, facing: int, slide: float, pending_: Array, ack: int) -> Dictionary:
@@ -51,8 +53,11 @@ func _ready() -> void:
 		if a.begins_with("--loss="): loss = float(a.substr(7))
 		if a == "--nopredict": predict = false
 		if a == "--bot": bot = true
+		if a.begins_with("--shot="): _shot = a.substr(7)
 	cam = Camera2D.new()
 	add_child(cam)
+	add_child(Render.new())
+	add_child(Hud.new())
 
 func connect_to(target: String) -> void:
 	msg = "Connecting..."
@@ -103,6 +108,8 @@ func on_welcome(info: Dictionary) -> void:
 	cam.limit_right = map.w * Cfg.CELL
 	cam.limit_bottom = map.h * Cfg.CELL
 	print("connected as %d (map %dx%d)" % [my_id, map.w, map.h])
+	if _shot != "":
+		_shot_at = Time.get_ticks_msec() + 6000
 
 func on_snapshot(snap: Array) -> void:
 	if not welcomed:
@@ -212,6 +219,10 @@ func _process(delta: float) -> void:
 		if not view.tanks.has(id):
 			shown.erase(id)
 	var now := Time.get_ticks_msec()
+	if _shot != "" and _shot_at > 0 and now > _shot_at:
+		get_viewport().get_texture().get_image().save_png(_shot)
+		print("screenshot saved: %s" % _shot)
+		get_tree().quit()
 	feed = feed.filter(func(f): return f[1] > now)
 	cam.position = my_pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	var z := get_viewport_rect().size.y / VIEW_PX
