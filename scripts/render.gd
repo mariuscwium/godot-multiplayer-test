@@ -1,20 +1,11 @@
 class_name Render extends Node2D
-# Draws the world (terrain, power-ups, tanks, bullets) in code, NES-ish and original.
+# Draws the world: terrain from assets/terrain.png tiles; tanks, bullets, power-ups in code.
 # Bushes are drawn after other tanks/bullets so they hide them; your own tank draws on top.
 
 const C := Cfg.CELL
-const COL_BRICK := Color("b5401e")
-const COL_MORTAR := Color("3b1208")
-const COL_STEEL := Color("b9bcc6")
-const COL_STEEL_DARK := Color("60646e")
-const COL_BUSH := Color("1f8a2c")
-const COL_BUSH_DARK := Color("0f5a1a")
-const COL_WATER := Color("2a4fd6")
-const COL_WATER_LIGHT := Color("6f93ff")
-const COL_ICE := Color("bfe3f5")
-const COL_ICE_LINE := Color("8cc4e0")
 
 var client: Client
+var tiles: Texture2D
 
 static func hp_color(hp: int) -> Color:
 	return Color("3ddc4a") if hp >= 3 else (Color("f2c21b") if hp == 2 else Color("e5392b"))
@@ -24,6 +15,11 @@ static func hue_for(id: int) -> float:
 
 func _ready() -> void:
 	client = get_parent()
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixels crisp at the ~3x camera zoom
+	tiles = load("res://assets/terrain.png")
+	if tiles == null:
+		push_error("assets/terrain.png is missing or not imported (run: godot --headless --path . --import)")
+		get_tree().quit(1)
 
 func _process(_d: float) -> void:
 	queue_redraw()
@@ -42,12 +38,12 @@ func _draw() -> void:
 	var map: GameMap = client.map
 	var vis := _visible_cells()
 	var t := Time.get_ticks_msec() / 1000.0
-	draw_rect(Rect2(0, 0, map.w * C, map.h * C), Color.BLACK)
 	for cy in range(maxi(vis.position.y, 0), mini(vis.end.y, map.h)):
 		for cx in range(maxi(vis.position.x, 0), mini(vis.end.x, map.w)):
+			_draw_cell(TerrainTiles.GROUND, cx, cy)
 			var tile := map.get_cell(cx, cy)
 			if tile != Cfg.Tile.EMPTY and tile != Cfg.Tile.BUSH:
-				_draw_tile(tile, cx, cy, t)
+				_draw_cell(TerrainTiles.index_for(tile, t), cx, cy)
 	for p in client.view.powerups:
 		_draw_powerup(p, t)
 	for id in client.view.tanks:
@@ -58,41 +54,16 @@ func _draw() -> void:
 	for cy in range(maxi(vis.position.y, 0), mini(vis.end.y, map.h)):
 		for cx in range(maxi(vis.position.x, 0), mini(vis.end.x, map.w)):
 			if map.get_cell(cx, cy) == Cfg.Tile.BUSH:
-				_draw_bush(cx, cy)
+				_draw_cell(TerrainTiles.BUSH, cx, cy)
 	var me: Dictionary = client.view.tanks.get(client.my_id, {})
 	if not me.is_empty() and me.alive:
 		var mine := me.duplicate()
 		mine.facing = client.my_facing  # predicted facing, not the older snapshot's
 		_draw_tank(client.my_id, client.my_pos, mine, t, true)
 
-func _draw_tile(tile: int, cx: int, cy: int, t: float) -> void:
-	var o := Vector2(cx * C, cy * C)
-	match tile:
-		Cfg.Tile.BRICK:
-			draw_rect(Rect2(o, Vector2(C, C)), COL_BRICK)
-			draw_rect(Rect2(o + Vector2(0, C / 2.0 - 0.5), Vector2(C, 1)), COL_MORTAR)
-			var vx := 2.0 if (cy % 2) == 0 else 6.0
-			draw_rect(Rect2(o + Vector2(vx, 0), Vector2(1, C / 2.0)), COL_MORTAR)
-			draw_rect(Rect2(o + Vector2(8 - vx, C / 2.0), Vector2(1, C / 2.0)), COL_MORTAR)
-		Cfg.Tile.STEEL:
-			draw_rect(Rect2(o, Vector2(C, C)), COL_STEEL_DARK)
-			draw_rect(Rect2(o + Vector2(1, 1), Vector2(C - 2, C - 2)), COL_STEEL)
-			draw_rect(Rect2(o + Vector2(3, 3), Vector2(C - 6, C - 6)), COL_STEEL_DARK)
-		Cfg.Tile.WATER:
-			draw_rect(Rect2(o, Vector2(C, C)), COL_WATER)
-			var off := fmod(t * 6.0 + cx * 3.0, 8.0)
-			draw_rect(Rect2(o + Vector2(off - 4.0, 2), Vector2(4, 1)), COL_WATER_LIGHT)
-			draw_rect(Rect2(o + Vector2(fmod(off + 4.0, 8.0) - 4.0, 6), Vector2(4, 1)), COL_WATER_LIGHT)
-		Cfg.Tile.ICE:
-			draw_rect(Rect2(o, Vector2(C, C)), COL_ICE)
-			draw_line(o + Vector2(1, 7), o + Vector2(7, 1), COL_ICE_LINE, 1.0)
-
-func _draw_bush(cx: int, cy: int) -> void:
-	var o := Vector2(cx * C, cy * C)
-	draw_rect(Rect2(o, Vector2(C, C)), COL_BUSH)
-	draw_rect(Rect2(o + Vector2(1, 1), Vector2(2, 2)), COL_BUSH_DARK)
-	draw_rect(Rect2(o + Vector2(5, 3), Vector2(2, 2)), COL_BUSH_DARK)
-	draw_rect(Rect2(o + Vector2(2, 5), Vector2(2, 2)), COL_BUSH_DARK)
+# One 8 px cell, drawn from the matching quarter of its 16x16 tile.
+func _draw_cell(index: int, cx: int, cy: int) -> void:
+	draw_texture_rect_region(tiles, Rect2(cx * C, cy * C, C, C), TerrainTiles.src_rect(index, cx, cy))
 
 func _draw_tank(id: int, pos: Vector2, tk: Dictionary, t: float, mine := false) -> void:
 	var col := Color.from_hsv(hue_for(id), 0.75, 1.0)

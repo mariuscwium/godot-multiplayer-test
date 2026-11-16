@@ -56,3 +56,6 @@ LAN discovery (UDP 7778 broadcast) doesn't cross Docker's network or routers; jo
 
 ## Layout
 `scripts/sim.gd` holds the authoritative game rules and is pure logic (no nodes); `scripts/tank_motion.gd` is the movement step shared by the server and the client's prediction. `server.gd`, `client.gd`, `net.gd` (all RPCs) do the networking; `render.gd`/`hud.gd` draw. Design and plan: `docs/superpowers/`.
+
+## Credits
+Terrain tiles (`assets/terrain.png`, cut by `tools/pack_terrain.gd`) are from Screaming Brain Studios' [Tiny Texture Pack](https://screamingbrainstudios.itch.io/tiny-texture-pack), CC0 / public domain.
