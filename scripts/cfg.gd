@@ -16,6 +16,8 @@ const HELMET_S := 8.0
 const POWERUP_TTL := 10.0
 const REGROW_MIN := 30.0
 const REGROW_MAX := 60.0
+const HEAL_DELAY_S := 4.0       # seconds after the last damage before a tank starts healing
+const HEAL_INTERVAL_S := 5.0    # then it regains 1 hp every this many seconds
 const MAX_STARS := 3
 const MAX_HP := 3              # shots to kill a tank; snapshots pack hp in 3 bits, so keep it <= 7
 const ICE_SLIDE_S := 0.25

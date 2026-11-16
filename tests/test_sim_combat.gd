@@ -333,3 +333,56 @@ func test_can_fire_again_once_the_bullet_expired() -> void:
 		for b in s.bullets:
 			seen[b.id] = true
 	T.ok(seen.size() >= 2, "at least two shots in 3 seconds, got %d" % seen.size())
+
+func test_no_healing_right_after_a_hit() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.hp = 1
+	t.last_hit = s.time
+	_run(s, Cfg.HEAL_DELAY_S - 0.5)
+	T.eq(t.hp, 1, "still waiting out the delay")
+
+func test_heals_one_hp_per_interval_after_the_delay() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.hp = 1
+	t.last_hit = s.time
+	var first := Cfg.HEAL_DELAY_S + Cfg.HEAL_INTERVAL_S
+	_run(s, first - 0.5)
+	T.eq(t.hp, 1, "not yet")
+	_run(s, 1.0)
+	T.eq(t.hp, 2, "first heal after delay + one interval")
+	_run(s, Cfg.HEAL_INTERVAL_S)
+	T.eq(t.hp, 3, "second heal one interval later")
+	_run(s, 2.0 * Cfg.HEAL_INTERVAL_S)
+	T.eq(t.hp, Cfg.MAX_HP, "never above full health")
+
+func test_a_hit_interrupts_healing() -> void:
+	var s := _sim(_rows(20, 8))
+	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	b.hp = 2
+	b.last_hit = s.time
+	_run(s, Cfg.HEAL_DELAY_S + Cfg.HEAL_INTERVAL_S - 0.6)   # just about to heal
+	T.eq(b.hp, 2, "not healed yet")
+	_fire_once(s, 1)
+	_run(s, 0.6)
+	T.eq(b.hp, 1, "took the hit instead")
+	_run(s, Cfg.HEAL_DELAY_S + Cfg.HEAL_INTERVAL_S - 1.0)
+	T.eq(b.hp, 1, "the clock restarted: no heal until delay + interval after the new hit")
+	_run(s, 2.0)
+	T.eq(b.hp, 2, "heals again afterwards")
+	T.ok(a.alive, "shooter unaffected")
+
+func test_a_shielded_hit_does_not_interrupt_healing() -> void:
+	var s := _sim(_rows(20, 8))
+	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	b.hp = 2
+	b.last_hit = s.time
+	b.shield_t = 100.0
+	_run(s, 2.0)
+	_fire_once(s, 1)
+	_run(s, Cfg.HEAL_DELAY_S + Cfg.HEAL_INTERVAL_S - 2.0 + 1.0)
+	T.eq(b.hp, 3, "healed on schedule despite absorbing a bullet")
+	T.ok(a.alive, "shooter unaffected")

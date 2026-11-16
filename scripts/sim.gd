@@ -11,6 +11,8 @@ class Tank extends RefCounted:
 	var shield_t := 0.0
 	var stars := 0
 	var hp := Cfg.MAX_HP
+	var last_hit := -1000.0        # sim time of the last damage taken
+	var heal_t := 0.0              # progress towards the next healed hp
 	var kills := 0
 	var input_dir := Cfg.NONE
 	var input_fire := false
@@ -143,6 +145,13 @@ func step(dt: float) -> void:
 	for id in ids:
 		var t: Tank = tanks[id]
 		t.shield_t = maxf(0.0, t.shield_t - dt)
+		if t.alive and t.hp < Cfg.MAX_HP and time - t.last_hit >= Cfg.HEAL_DELAY_S:
+			t.heal_t += dt
+			if t.heal_t >= Cfg.HEAL_INTERVAL_S:
+				t.hp += 1
+				t.heal_t = 0.0
+		else:
+			t.heal_t = 0.0
 		if not t.alive:
 			t.respawn_t -= dt
 			if t.respawn_t <= 0.0:
@@ -260,6 +269,8 @@ func _resolve_bullets() -> void:
 			if v == null or not v.alive:
 				break
 			v.hp -= 1
+			v.last_hit = time
+			v.heal_t = 0.0
 			if v.hp <= 0:
 				_kill(v, shooter)
 
