@@ -37,3 +37,24 @@ func test_terrain_png_is_packed() -> void:
 			if img.get_pixel(x, y).a < 1.0:
 				opaque = false
 	T.ok(opaque, "every pixel opaque")
+
+func test_ground_tile_is_dimmed_sand() -> void:
+	var tex := load("res://assets/terrain.png") as Texture2D
+	if tex == null:
+		T.ok(false, "assets/terrain.png loads")
+		return
+	var img := tex.get_image()
+	var r := 0.0
+	var b := 0.0
+	var lum := 0.0
+	for y in 16:
+		for x in 16:
+			var p := img.get_pixel(TerrainTiles.GROUND * 16 + x, y)
+			r += p.r
+			b += p.b
+			lum += p.get_luminance()
+	r /= 256.0
+	b /= 256.0
+	lum /= 256.0
+	T.ok(r > b + 0.04, "warm (sandy), not navy: r=%.3f b=%.3f" % [r, b])
+	T.ok(lum > 0.3 and lum < 0.6, "dimmed sand (the author-approved look measures ~0.51; undimmed sand is ~0.7): luminance %.3f" % lum)
