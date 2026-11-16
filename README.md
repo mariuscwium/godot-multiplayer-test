@@ -1,6 +1,6 @@
 # Battle City .io
 
-A free-for-all, drop-in multiplayer tank game inspired by Battle City (NES, 1985). Godot 4.7, server-authoritative, native (UDP) and browser (WebSocket). Original art, drawn in code.
+A free-for-all, drop-in multiplayer tank game inspired by Battle City (NES, 1985). Godot 4.7, server-authoritative, native (UDP) and browser (WebSocket). Pixel art: terrain tiles from piiixl's Textures pack and tank sprites generated with ChatGPT (see Credits); bullets, power-ups and the HUD are drawn in code.
 
 Arrows/WASD move (4 directions, like the original), Space or click fires. Kill a tank and it drops a power-up where it died: star (faster shot, then a second bullet, then steel-breaking), helmet (shield), grenade (clears bricks and bullets around you). Bricks regrow after 30-60 s.
 
@@ -58,4 +58,4 @@ LAN discovery (UDP 7778 broadcast) doesn't cross Docker's network or routers; jo
 `scripts/sim.gd` holds the authoritative game rules and is pure logic (no nodes); `scripts/tank_motion.gd` is the movement step shared by the server and the client's prediction. `server.gd`, `client.gd`, `net.gd` (all RPCs) do the networking; `render.gd`/`hud.gd` draw. Design and plan: `docs/superpowers/`.
 
 ## Credits
-Terrain tiles (`assets/terrain.png`, 8 tiles cut from the 16x16 atlas by `tools/pack_terrain.gd`) are from [Textures by piiixl](https://piiixl.itch.io/textures): free for commercial use in games and projects, not for resale or redistribution as-is, so the original pack is not included here. Tank sprites (`assets/source/tank-sprite-sheet.png`) were generated with ChatGPT for this project.
+Terrain tiles (`assets/terrain.png`, 8 tiles cut from the 16x16 atlas by `tools/pack_terrain.gd`) are from [Textures by piiixl](https://piiixl.itch.io/textures): free for commercial use in games and projects, not for resale or redistribution as-is, so the original pack is not included here. Tank sprites (`assets/source/tank-sprite-sheet.png`, cut into `assets/tanks.png` by `tools/pack_tanks.gd`) were generated with ChatGPT for this project.
