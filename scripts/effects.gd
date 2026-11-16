@@ -17,6 +17,7 @@ const DEFS := {
 	"drop_sparkle": {"path": "res://assets/fx/drop_sparkle.png", "fw": 32, "fh": 32, "frames": 14, "cols": 14, "fps": 15.0, "size": 32.0, "base_angle": 0.0},
 	"warp_in": {"path": "res://assets/fx/warp_in.png", "fw": 64, "fh": 64, "frames": 12, "cols": 12, "fps": 15.0, "size": 48.0, "base_angle": 0.0},
 	"muzzle": {"path": "res://assets/fx/muzzle.png", "fw": 16, "fh": 16, "frames": 6, "cols": 4, "fps": 30.0, "size": 16.0, "base_angle": 0.0},   # a flash should be quick: 30 fps
+	"brick_dust": {"path": "res://assets/fx/brick_dust.png", "fw": 32, "fh": 32, "frames": 10, "cols": 10, "fps": 15.0, "size": 32.0, "base_angle": 0.0},
 }
 
 static func has(kind: String) -> bool:

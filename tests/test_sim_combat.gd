@@ -562,3 +562,35 @@ func test_refused_fire_emits_no_flash() -> void:
 	s.set_input(1, Cfg.NONE, true, 3)
 	s.step(1.0 / 30)
 	T.eq(_fx_events(s, "muzzle").size(), 0, "a dead tank does not fire")
+
+func test_destroying_brick_emits_one_dust_puff_per_bullet() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "B")
+	_put(rows, 8, 3, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	T.eq(_fx_events(s, "brick_dust").size(), 0, "the first hit only damages: no dust yet")
+	_shoot_wall(s, 1)
+	var dust := _fx_events(s, "brick_dust")
+	T.eq(dust.size(), 1, "the second hit destroys two cells but gives one puff")
+
+func test_a_heavy_shot_that_breaks_brick_or_steel_gives_dust() -> void:
+	for tile in ["B", "S"]:
+		var rows := _rows(20, 8)
+		_put(rows, 8, 2, tile)
+		_put(rows, 8, 3, tile)
+		var s := _sim(rows)
+		var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+		t.stars = 3
+		_shoot_wall(s, 1)
+		T.eq(_fx_events(s, "brick_dust").size(), 1, "3-star shot through %s: one puff" % tile)
+
+func test_a_blocked_steel_hit_gives_sparks_but_no_dust() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "S")
+	_put(rows, 8, 3, "S")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	T.eq(_fx_events(s, "brick_dust").size(), 0, "nothing broke")

@@ -303,6 +303,7 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 		_fx("hit_brick", b.pos)
 	else:
 		_fx("hit_steel", b.pos, TankSprite.angle((b.dir + 2) % 4))   # ricochet sparks fly back where the bullet came from
+	var broke := false
 	for c in pair:
 		var t := map.get_cell(c.x, c.y)
 		if t == Cfg.Tile.BRICK and not heavy:
@@ -311,6 +312,9 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 		elif t == Cfg.Tile.BRICK or t == Cfg.Tile.BRICK_DAMAGED or (t == Cfg.Tile.STEEL and heavy):
 			if map.destroy(c.x, c.y, time):
 				_cells.append([c.x, c.y, Cfg.Tile.EMPTY])
+				broke = true
+	if broke:
+		_fx("brick_dust", b.pos)   # one puff per bullet, however many cells it took out
 
 func drop_powerup(pos: Vector2, type: int) -> void:
 	var snapped := (pos / Cfg.CELL).round() * Cfg.CELL

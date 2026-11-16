@@ -17,6 +17,7 @@ const SHEETS := {
 	"drop_sparkle": "Magic Bursts/round_sparkle_burst_001/round_sparkle_burst_001_small_blue",
 	"warp_in": "Sci-fi/scifi_warp_003/scifi_warp_003_small_blue",
 	"muzzle": "Sci-fi/scifi_muzzle_flash_001/scifi_muzzle_flash_001_small_yellow",
+	"brick_dust": "Smoke Bursts/symmetrical_smoke_burst_001/symmetrical_smoke_burst_001_small_brown",
 }
 
 func _init() -> void:
