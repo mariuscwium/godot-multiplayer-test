@@ -24,6 +24,7 @@ class Bullet extends RefCounted:
 	var dir := Cfg.Dir.UP
 	var owner := 0
 	var stars := 0                 # shooter's stars at fire time
+	var travelled := 0.0           # px flown since the muzzle
 
 const BULLET_STEP := 4.0           # max px per collision sub-step
 const BULLET_HIT_RADIUS := 5.0
@@ -206,7 +207,9 @@ func _step_bullets(dt: float) -> void:
 		for b in bullets:
 			var sp := Cfg.BULLET_SPEED_FAST if b.stars >= 1 else Cfg.BULLET_SPEED
 			b.pos += Cfg.dir_vec(b.dir) * sp * dt / n
+			b.travelled += sp * dt / n
 		_resolve_bullets()
+		bullets = bullets.filter(func(b): return b.travelled < Cfg.BULLET_RANGE)
 		if bullets.is_empty():
 			break
 

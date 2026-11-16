@@ -303,3 +303,33 @@ func test_respawn_restores_full_hp() -> void:
 	_run(s, 2.0)
 	T.ok(b.alive, "respawned")
 	T.eq(b.hp, Cfg.MAX_HP, "full hp again")
+
+func test_bullet_expires_after_one_screen_of_range() -> void:
+	var s := _sim(_rows(120, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_fire_once(s, 1)
+	_run(s, 0.9)
+	T.eq(s.bullets.size(), 1, "still flying at 0.9s (208px at 180px/s is ~1.16s)")
+	_run(s, 0.4)
+	T.eq(s.bullets.size(), 0, "gone once it has travelled the range, without hitting anything")
+
+func test_fast_bullet_expires_at_the_same_range() -> void:
+	var s := _sim(_rows(120, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.stars = 1
+	_fire_once(s, 1)
+	_run(s, 0.6)
+	T.eq(s.bullets.size(), 1, "still flying at 0.6s (208px at 300px/s is ~0.69s)")
+	_run(s, 0.3)
+	T.eq(s.bullets.size(), 0, "gone")
+
+func test_can_fire_again_once_the_bullet_expired() -> void:
+	var s := _sim(_rows(120, 8))   # 960px of open lane: without a range limit one bullet blocks you for ~5s
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var seen := {}
+	for i in 3 * Cfg.TICK_HZ:
+		s.set_input(1, Cfg.NONE, true, i + 1)   # held fire, re-sent every tick like a real client
+		s.step(1.0 / Cfg.TICK_HZ)
+		for b in s.bullets:
+			seen[b.id] = true
+	T.ok(seen.size() >= 2, "at least two shots in 3 seconds, got %d" % seen.size())
