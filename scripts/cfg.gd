@@ -9,6 +9,7 @@ const TANK_SPEED := 60.0
 const BULLET_SPEED := 180.0
 const BULLET_SPEED_FAST := 300.0
 const BULLET_RANGE := 208.0     # px a bullet flies before vanishing: one screen height, so you can fire again soon
+const FIRE_COOLDOWN_S := 0.4    # minimum seconds between a tank's shots, so point-blank wall shooting can't be spammed
 const TICK_HZ := 30
 const RESPAWN_S := 2.0
 const SPAWN_SHIELD_S := 3.0

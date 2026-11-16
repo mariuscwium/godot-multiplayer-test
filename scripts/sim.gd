@@ -12,6 +12,7 @@ class Tank extends RefCounted:
 	var stars := 0
 	var hp := Cfg.MAX_HP
 	var last_hit := -1000.0        # sim time of the last damage taken
+	var last_fire := -1000.0       # sim time of the last shot (for the fire cooldown)
 	var heal_t := 0.0              # progress towards the next healed hp
 	var kills := 0
 	var input_dir := Cfg.NONE
@@ -200,8 +201,9 @@ func _move_tank(t: Tank, dt: float) -> void:
 	t.slide_t = r.slide_t
 
 func _fire(t: Tank) -> void:
-	if _bullets_of(t.id) >= (2 if t.stars >= 2 else 1):
+	if _bullets_of(t.id) >= (2 if t.stars >= 2 else 1) or time - t.last_fire < Cfg.FIRE_COOLDOWN_S:
 		return
+	t.last_fire = time
 	var b := Bullet.new()
 	b.id = _next_bullet
 	_next_bullet += 1

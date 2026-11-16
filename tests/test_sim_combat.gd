@@ -85,8 +85,8 @@ func test_two_stars_allow_two_bullets() -> void:
 	var s := _sim(_rows(60, 8))
 	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	t.stars = 2
-	s.set_input(1, Cfg.NONE, true, 1)
-	for i in 4:
+	for i in int(0.6 * Cfg.TICK_HZ):   # held fire, re-sent every tick; the second shot waits out the cooldown
+		s.set_input(1, Cfg.NONE, true, i + 1)
 		s.step(1.0 / 30)
 	T.eq(s.bullets.size(), 2, "two in flight with 2 stars")
 
@@ -594,3 +594,44 @@ func test_a_blocked_steel_hit_gives_sparks_but_no_dust() -> void:
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	_shoot_wall(s, 1)
 	T.eq(_fx_events(s, "brick_dust").size(), 0, "nothing broke")
+
+func _muzzle_times(s: Sim, secs: float, id := 1) -> Array:
+	var times := []
+	for i in int(secs * Cfg.TICK_HZ):
+		s.set_input(id, Cfg.NONE, true, i + 1)   # held fire, re-sent every tick like a real client
+		s.step(1.0 / Cfg.TICK_HZ)
+		for e in s.drain_events():
+			if e.k == "fx" and e.fx == "muzzle":
+				times.append(s.time)
+	return times
+
+func test_firing_into_an_adjacent_wall_is_rate_limited() -> void:
+	var rows := _rows(20, 8)
+	for y in [1, 2, 3, 4]:
+		_put(rows, 3, y, "B")      # a brick wall right in front of the barrel: every bullet dies at once
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(8, 16), Cfg.Dir.RIGHT)
+	var times := _muzzle_times(s, 2.0)
+	T.ok(times.size() >= 4 and times.size() <= 6, "about 2.5 shots a second, got %d in 2 s" % times.size())
+
+func test_shots_are_at_least_the_cooldown_apart() -> void:
+	var s := _sim(_rows(120, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var times := _muzzle_times(s, 4.0)
+	T.ok(times.size() >= 2, "fired more than once")
+	for i in range(1, times.size()):
+		T.ok(times[i] - times[i - 1] >= Cfg.FIRE_COOLDOWN_S - 1.0 / Cfg.TICK_HZ, "gap %.3f s is shorter than the cooldown" % (times[i] - times[i - 1]))
+
+func test_the_cooldown_also_applies_to_tanks_allowed_two_bullets() -> void:
+	var s := _sim(_rows(120, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.stars = 2
+	var times := _muzzle_times(s, 0.3)
+	T.eq(times.size(), 1, "one shot in the first 0.3 s even though a second bullet is allowed")
+
+func test_a_fresh_tank_can_fire_on_its_first_tick() -> void:
+	var s := _sim(_rows(120, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	s.set_input(1, Cfg.NONE, true, 1)
+	s.step(1.0 / Cfg.TICK_HZ)
+	T.eq(s.bullets.size(), 1, "no waiting before the first shot")
