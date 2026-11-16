@@ -16,6 +16,8 @@ var welcomed := false
 var msg := ""              # connection problems / status for the HUD
 var feed: Array = []       # [text, expires_ms] kill feed
 var fx: Array = []         # active explosions: {pos, born_ms}
+var shake_start_ms := -1   # when the current kill-shake began (-1: none)
+var _shake_rng := RandomNumberGenerator.new()
 var shown := {}            # id -> smoothed position of remote tanks
 var my_pos := Vector2.ZERO
 var my_facing := Cfg.Dir.UP
@@ -82,6 +84,7 @@ func _ready() -> void:
 			_bot_rng.randomize()
 		if a.begins_with("--shot="): _shot = a.substr(7)
 		if a == "--stats": _stats = true
+	_shake_rng.randomize()
 	cam = Camera2D.new()
 	add_child(cam)
 	add_child(Render.new())
@@ -188,6 +191,8 @@ func on_events(events: Array) -> void:
 					map.set_cell(c[0], c[1], c[2])
 			"kill":
 				fx.append({"pos": e.get("pos", Vector2.ZERO), "born_ms": Time.get_ticks_msec()})
+				if e.killer == my_id:
+					shake_start_ms = Time.get_ticks_msec()   # you scored it: shake the screen a little
 				feed.append(["%s > %s" % [roster.get(e.killer, "?"), roster.get(e.victim, "?")], Time.get_ticks_msec() + 5000])
 			"join":
 				roster[e.id] = e.name
@@ -297,5 +302,6 @@ func _process(delta: float) -> void:
 	feed = feed.filter(func(f): return f[1] > now)
 	prune_fx(now)
 	cam.position = my_pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
+	cam.offset = ScreenShake.offset((now - shake_start_ms) / 1000.0, _shake_rng) if shake_start_ms >= 0 else Vector2.ZERO
 	var z := get_viewport_rect().size.y / VIEW_PX
 	cam.zoom = Vector2(z, z)
