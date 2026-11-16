@@ -26,3 +26,15 @@ func test_terrain_texture_filters_only_itself() -> void:
 	if tex is CanvasTexture:
 		T.eq(tex.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "tile art stays crisp")
 		T.eq(tex.get_size(), Vector2(128, 16), "the packed strip")
+
+func test_tank_texture_is_nearest_canvas_texture() -> void:
+	var tex := Render.load_nearest_texture("res://assets/tanks.png")
+	T.ok(tex is CanvasTexture, "wrapped in a CanvasTexture")
+	if tex is CanvasTexture:
+		T.eq(tex.texture_filter, CanvasItem.TEXTURE_FILTER_NEAREST, "crisp pixels")
+		T.eq(tex.get_size(), Vector2(128, 64), "the packed strip")
+
+func test_is_moving() -> void:
+	T.eq(Render.is_moving(null, Vector2(5, 5)), false, "no previous position")
+	T.eq(Render.is_moving(Vector2(5, 5), Vector2(5, 5)), false, "standing still")
+	T.eq(Render.is_moving(Vector2(5, 5), Vector2(5.5, 5)), true, "moved half a pixel")

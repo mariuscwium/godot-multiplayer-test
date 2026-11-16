@@ -6,16 +6,25 @@ const C := Cfg.CELL
 
 var client: Client
 var tiles: Texture2D
+var tanks: Texture2D
+var _last_pos := {}      # tank id -> position drawn last frame
+var _moved_ms := {}      # tank id -> when it last moved (treads keep rolling between 30 Hz updates)
 
 # Nearest filtering is set on the texture, not on this node, so name tags keep smooth text.
-static func load_terrain_texture() -> Texture2D:
-	var base := load("res://assets/terrain.png") as Texture2D
+static func load_nearest_texture(path: String) -> Texture2D:
+	var base := load(path) as Texture2D
 	if base == null:
 		return null
 	var ct := CanvasTexture.new()
 	ct.diffuse_texture = base
 	ct.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	return ct
+
+static func load_terrain_texture() -> Texture2D:
+	return load_nearest_texture("res://assets/terrain.png")
+
+static func is_moving(prev: Variant, now: Vector2) -> bool:
+	return prev != null and prev.distance_to(now) >= 0.05
 
 static func hp_color(hp: int) -> Color:
 	return Color("3ddc4a") if hp >= 3 else (Color("f2c21b") if hp == 2 else Color("e5392b"))
@@ -26,8 +35,9 @@ static func hue_for(id: int) -> float:
 func _ready() -> void:
 	client = get_parent()
 	tiles = load_terrain_texture()
-	if tiles == null:
-		push_error("assets/terrain.png is missing or not imported (run: godot --headless --path . --import)")
+	tanks = load_nearest_texture("res://assets/tanks.png")
+	if tiles == null or tanks == null:
+		push_error("assets/terrain.png or assets/tanks.png is missing or not imported (run: godot --headless --path . --import)")
 		get_tree().quit(1)
 
 func _process(_d: float) -> void:
@@ -60,6 +70,10 @@ func _draw() -> void:
 		if id != client.my_id and tk.alive:
 			_draw_tank(id, client.shown.get(id, tk.pos), tk, t)
 	_draw_bullets()
+	for id in _last_pos.keys():
+		if not client.view.tanks.has(id):
+			_last_pos.erase(id)
+			_moved_ms.erase(id)
 	for cy in range(maxi(vis.position.y, 0), mini(vis.end.y, map.h)):
 		for cx in range(maxi(vis.position.x, 0), mini(vis.end.x, map.w)):
 			if map.get_cell(cx, cy) == Cfg.Tile.BUSH:
@@ -75,30 +89,15 @@ func _draw_cell(index: int, cx: int, cy: int) -> void:
 	draw_texture_rect_region(tiles, Rect2(cx * C, cy * C, C, C), TerrainTiles.src_rect(index, cx, cy))
 
 func _draw_tank(id: int, pos: Vector2, tk: Dictionary, t: float, mine := false) -> void:
-	var col := Color.from_hsv(hue_for(id), 0.75, 1.0)
-	var dark := col.darkened(0.55)
-	var horizontal: bool = tk.facing == Cfg.Dir.LEFT or tk.facing == Cfg.Dir.RIGHT
-	var tread := int(t * 12.0) % 2
-	if horizontal:
-		draw_rect(Rect2(pos + Vector2(0, 0), Vector2(16, 4)), dark)
-		draw_rect(Rect2(pos + Vector2(0, 12), Vector2(16, 4)), dark)
-		for i in range(tread, 16, 4):
-			draw_rect(Rect2(pos + Vector2(i, 0), Vector2(1, 4)), Color.BLACK)
-			draw_rect(Rect2(pos + Vector2(i, 12), Vector2(1, 4)), Color.BLACK)
-		draw_rect(Rect2(pos + Vector2(2, 4), Vector2(12, 8)), col)
-	else:
-		draw_rect(Rect2(pos + Vector2(0, 0), Vector2(4, 16)), dark)
-		draw_rect(Rect2(pos + Vector2(12, 0), Vector2(4, 16)), dark)
-		for i in range(tread, 16, 4):
-			draw_rect(Rect2(pos + Vector2(0, i), Vector2(4, 1)), Color.BLACK)
-			draw_rect(Rect2(pos + Vector2(12, i), Vector2(4, 1)), Color.BLACK)
-		draw_rect(Rect2(pos + Vector2(4, 2), Vector2(8, 12)), col)
-	var c := pos + Vector2(8, 8)
-	var v := Cfg.dir_vec(tk.facing)
-	draw_rect(Rect2(c + v * 2.0 - Vector2(1.5, 1.5), Vector2(3, 3)).merge(Rect2(c + v * 9.0 - Vector2(1.5, 1.5), Vector2(3, 3))), dark.lightened(0.3))
-	draw_rect(Rect2(c - Vector2(3, 3), Vector2(6, 6)), col.lightened(0.25))
-	for i in tk.stars:
-		draw_rect(Rect2(pos + Vector2(5 + i * 3, 7), Vector2(2, 2)), Color.YELLOW)
+	var now_ms := Time.get_ticks_msec()
+	if is_moving(_last_pos.get(id), pos):
+		_moved_ms[id] = now_ms
+	_last_pos[id] = pos
+	var frame := int(t * 10.0) % 2 if now_ms - _moved_ms.get(id, -1000) < 120 else 0
+	draw_set_transform(pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5, TankSprite.angle(tk.facing), Vector2.ONE)
+	draw_texture_rect_region(tanks, Rect2(-8, -8, Cfg.TANK_PX, Cfg.TANK_PX), TankSprite.src_rect(tk.stars, frame),
+		Color.from_hsv(hue_for(id), 0.55, 1.0))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	for i in Cfg.MAX_HP:   # health bar under the tank: one segment per hit it can take
 		draw_rect(Rect2(pos + Vector2(i * 6, 18), Vector2(4, 2)), hp_color(tk.hp) if i < tk.hp else Color(0.25, 0.25, 0.25))
 	if tk.shield and int(t * 10.0) % 2 == 0:
