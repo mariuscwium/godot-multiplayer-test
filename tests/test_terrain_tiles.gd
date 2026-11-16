@@ -58,3 +58,17 @@ func test_ground_tile_is_dimmed_sand() -> void:
 	lum /= 256.0
 	T.ok(r > b + 0.04, "warm (sandy), not navy: r=%.3f b=%.3f" % [r, b])
 	T.ok(lum > 0.3 and lum < 0.6, "dimmed sand (the author-approved look measures ~0.51; undimmed sand is ~0.7): luminance %.3f" % lum)
+
+func test_ice_tile_has_no_glass_shine() -> void:
+	# the first ice pick was a glass pane with a bright white diagonal highlight; ice should look frosty instead
+	var tex := load("res://assets/terrain.png") as Texture2D
+	if tex == null:
+		T.ok(false, "assets/terrain.png loads")
+		return
+	var img := tex.get_image()
+	var shiny := 0
+	for y in 16:
+		for x in 16:
+			if img.get_pixel(TerrainTiles.ICE * 16 + x, y).get_luminance() > 0.85:
+				shiny += 1
+	T.ok(shiny < 8, "fewer than 8 near-white pixels in the ice tile, got %d" % shiny)
