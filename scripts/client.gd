@@ -20,6 +20,8 @@ var shake_start_ms := -1   # when the current kill-shake began (-1: none)
 var _shake_rng := RandomNumberGenerator.new()
 var shown := {}            # id -> smoothed position of remote tanks
 var my_pos := Vector2.ZERO
+var my_draw_pos := Vector2.ZERO  # my_pos smoothed between 30 Hz ticks, for camera and drawing
+var _prev_pos := Vector2.ZERO
 var my_facing := Cfg.Dir.UP
 var my_slide := 0.0
 var seq := 0
@@ -84,6 +86,7 @@ func _ready() -> void:
 			_bot_rng.randomize()
 		if a.begins_with("--shot="): _shot = a.substr(7)
 		if a == "--stats": _stats = true
+		if a == "--camlog": _camlog = true
 	_shake_rng.randomize()
 	cam = Camera2D.new()
 	add_child(cam)
@@ -258,6 +261,7 @@ func _bot_input() -> Dictionary:
 func _physics_process(_delta: float) -> void:
 	if not welcomed:
 		return
+	_prev_pos = my_pos
 	var inp := _read_input()
 	seq += 1
 	var dir: int = inp.dir
@@ -284,9 +288,25 @@ func _send_delayed(s: int, dir: int, fire: bool) -> void:
 		if randf() >= loss:
 			net.input.rpc_id(1, q[1], q[2], q[3])
 
+var _camlog := false
+var _cl_prev := Vector2.ZERO
+var _cl: Array = []
+
 func _process(delta: float) -> void:
 	if not welcomed:
 		return
+	if _camlog:
+		var st := cam.position - _cl_prev
+		_cl_prev = cam.position
+		if st.length() > 0.0 and st.length() < 20.0 or _cl.size() > 0:
+			_cl.append([delta, st.length()])
+		if _cl.size() >= 600:
+			var out := PackedStringArray()
+			for e in _cl: out.append("%.4f,%.3f" % [e[0], e[1]])
+			var f := FileAccess.open("/tmp/camlog.csv", FileAccess.WRITE)
+			f.store_string("\n".join(out))
+			f.close()
+			get_tree().quit()
 	for id in view.tanks:
 		if id == my_id:
 			continue
@@ -311,7 +331,11 @@ func _process(delta: float) -> void:
 		get_tree().quit()
 	feed = feed.filter(func(f): return f[1] > now)
 	prune_fx(now)
-	cam.position = my_pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
+	if _prev_pos.distance_to(my_pos) > 16.0:
+		my_draw_pos = my_pos  # respawn or hard correction: don't glide
+	else:
+		my_draw_pos = _prev_pos.lerp(my_pos, Engine.get_physics_interpolation_fraction())
+	cam.position = my_draw_pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	cam.offset = ScreenShake.offset((now - shake_start_ms) / 1000.0, _shake_rng) if shake_start_ms >= 0 else Vector2.ZERO
 	var z := get_viewport_rect().size.y / VIEW_PX
 	cam.zoom = Vector2(z, z)

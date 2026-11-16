@@ -7,6 +7,7 @@ const C := Cfg.CELL
 var client: Client
 var tiles: Texture2D
 var tanks: Texture2D
+var tracks := Tracks.new()
 var fx_tex := {}         # effect kind -> texture
 var _last_pos := {}      # tank id -> position drawn last frame
 var _moved_ms := {}      # tank id -> when it last moved (treads keep rolling between 30 Hz updates)
@@ -71,6 +72,7 @@ func _draw() -> void:
 			var tile := map.get_cell(cx, cy)
 			if tile != Cfg.Tile.EMPTY and tile != Cfg.Tile.BUSH:
 				_draw_cell(TerrainTiles.index_for(tile, t), cx, cy)
+	_draw_tracks()
 	for p in client.view.powerups:
 		_draw_powerup(p, t)
 	for id in client.view.tanks:
@@ -82,6 +84,7 @@ func _draw() -> void:
 		if not client.view.tanks.has(id):
 			_last_pos.erase(id)
 			_moved_ms.erase(id)
+			tracks.forget(id)
 	for cy in range(maxi(vis.position.y, 0), mini(vis.end.y, map.h)):
 		for cx in range(maxi(vis.position.x, 0), mini(vis.end.x, map.w)):
 			if map.get_cell(cx, cy) == Cfg.Tile.BUSH:
@@ -90,8 +93,22 @@ func _draw() -> void:
 	if not me.is_empty() and me.alive:
 		var mine := me.duplicate()
 		mine.facing = client.my_facing  # predicted facing, not the older snapshot's
-		_draw_tank(client.my_id, client.my_pos, mine, t, true)
+		_draw_tank(client.my_id, client.my_draw_pos, mine, t, true)
 	_draw_effects()
+
+# Tread marks lie on the ground: over the terrain, under tanks and bushes.
+func _draw_tracks() -> void:
+	var now := Time.get_ticks_msec()
+	tracks.prune(now)
+	for m in tracks.marks:
+		var a := Tracks.alpha((now - m.born_ms) / 1000.0)
+		if a <= 0.0:
+			continue
+		draw_set_transform(m.pos, m.rot, Vector2.ONE)
+		var col := Color(0, 0, 0, a)
+		draw_rect(Rect2(-7, -2, 3, 4), col)
+		draw_rect(Rect2(4, -2, 3, 4), col)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 # Effect animations play on top of everything in the world, bushes included.
 func _draw_effects() -> void:
@@ -117,6 +134,9 @@ func _draw_tank(id: int, pos: Vector2, tk: Dictionary, t: float, mine := false) 
 	if is_moving(_last_pos.get(id), pos):
 		_moved_ms[id] = now_ms
 	_last_pos[id] = pos
+	var center := pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
+	var cell := client.map.get_cell(floori(center.x / C), floori(center.y / C))
+	tracks.update(id, center, tk.facing, cell != Cfg.Tile.ICE, now_ms)
 	var frame := int(t * 10.0) % 2 if now_ms - _moved_ms.get(id, -1000) < 120 else 0
 	draw_set_transform(pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5, TankSprite.angle(tk.facing), Vector2.ONE)
 	draw_texture_rect_region(tanks, Rect2(-8, -8, Cfg.TANK_PX, Cfg.TANK_PX), TankSprite.src_rect(tk.stars, frame),
