@@ -1,33 +1,48 @@
-# godot-multiplayer-test
+# Battle City .io
 
-Small Godot 4.7 multiplayer experiment: server-authoritative movement with client prediction, shooting, lobby/ready-up rounds, chat, LAN discovery, and a dedicated server.
+A free-for-all, drop-in multiplayer tank game inspired by Battle City (NES, 1985). Godot 4.7, server-authoritative, native (UDP) and browser (WebSocket). Original art, drawn in code.
+
+Arrows/WASD move (4 directions, like the original), Space or click fires. Kill a tank and it drops a power-up where it died: star (faster shot, then a second bullet, then steel-breaking), helmet (shield), grenade (clears bricks and bullets around you). Bricks regrow after 30-60 s.
 
 ## Run
 ```
-godot --path . -- --host --name=Me      # host and play
-godot --path . -- --server              # dedicated server (no player); add --headless for no window
-godot --path . -- --join                # find a host on the LAN
-godot --path . -- --join <ip>           # join by IP (UDP 7777)
-godot --headless --path . -- --join <ip> --bot --name=Bot   # AI bot client: readies up, chases, shoots
+godot --headless --path . -- --server            # dedicated server (UDP 7777)
+godot --path . -- --join 127.0.0.1 --name=Me     # join by IP; no target = find a host on the LAN
+godot --path . -- --host --name=Me               # run the server and play in one process
+godot --headless --path . -- --join 127.0.0.1 --bot --name=Bot   # AI opponent for testing
 ```
-## WebSocket / online (free path)
+Add `--ws` to `--server`/`--host` for WebSocket (TCP 7777) instead of UDP. Client test flags: `--lag=<ms> --loss=<0..1> --nopredict`, `--shot=<png>` (save a screenshot 6 s after joining, then quit).
+
+## Tests
 ```
-godot --headless --path . -- --server --ws              # WebSocket on TCP 7777, plain ws
-cloudflared tunnel --url http://localhost:7777          # public wss:// URL, Cloudflare terminates TLS
-godot --path . -- --join wss://<name>.trycloudflare.com # native client over the tunnel
+tools/test.sh [filter]     # headless unit tests (tests/test_*.gd)
 ```
-Web export (single-threaded, so no COOP/COEP headers needed): `godot --headless --path . --export-release Web build/web/index.html`
-(needs the Godot 4.7.2 export templates installed), serve `build/web/`, then open
-`index.html?server=wss://<host>&name=Me`. `export_presets.cfg` and `build/` are gitignored; recreate the preset in the editor.
-Quick-tunnel URLs are random and change each run; a stable hostname needs a domain on Cloudflare.
 
-Extra client flags for testing: `--lag=<ms> --loss=<0..1> --nopredict`.
+## Online (GitHub Pages + Cloudflare tunnel)
+1. Web export (single-threaded, so GitHub Pages needs no special headers):
+   ```
+   python3 -I tools/install_web_templates.py   # once: fetches only the Web export templates (~20 MB)
+   tools/export_web.sh                         # writes build/web/
+   tools/publish_pages.sh --push               # commits build/web to gh-pages and pushes
+   ```
+   Then in the repo settings choose Pages, branch `gh-pages`, root.
+2. Server, anywhere you can run it, with a tunnel for `wss://`:
+   ```
+   godot --headless --path . -- --server --ws
+   cloudflared tunnel --url http://localhost:7777      # prints https://<random>.trycloudflare.com
+   ```
+3. Play: `https://<user>.github.io/<repo>/?server=wss://<random>.trycloudflare.com&name=Me`
+   (native clients too: `--join wss://<random>.trycloudflare.com`).
 
-Controls: arrows move, click shoots, Enter chats, R readies up. A round starts when 2+ players are ready; first to 5 kills wins.
+Quick-tunnel URLs change every run; a stable hostname needs a domain on Cloudflare.
 
-## Dedicated server (Docker)
+### Docker server
 ```
 docker build -t godot-mp-server .
-docker run -d --restart unless-stopped -p 7777:7777/udp godot-mp-server
+docker run -d --restart unless-stopped -p 7777:7777 godot-mp-server              # WebSocket (default)
+docker run -d --restart unless-stopped -p 7777:7777/udp -e SERVER_ARGS="" godot-mp-server   # native UDP
 ```
-LAN discovery (UDP 7778 broadcast) doesn't cross Docker Desktop's network or routers; join by IP.
+LAN discovery (UDP 7778 broadcast) doesn't cross Docker's network or routers; join by IP.
+
+## Layout
+`scripts/sim.gd` holds the authoritative game rules and is pure logic (no nodes); `scripts/tank_motion.gd` is the movement step shared by the server and the client's prediction. `server.gd`, `client.gd`, `net.gd` (all RPCs) do the networking; `render.gd`/`hud.gd` draw. Design and plan: `docs/superpowers/`.
