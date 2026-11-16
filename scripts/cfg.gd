@@ -20,7 +20,8 @@ const HEAL_DELAY_S := 4.0       # seconds after the last damage before a tank st
 const HEAL_INTERVAL_S := 5.0    # then it regains 1 hp every this many seconds
 const MAX_STARS := 3
 const MAX_HP := 3              # shots to kill a tank; snapshots pack hp in 3 bits, so keep it <= 7
-const ICE_SLIDE_S := 0.25
+const ICE_SLIDE_S := 1.2        # momentum on ice: seconds to coast to a stop, speed fading linearly
+const ICE_TURN_FRAC := 0.6      # while sliding, a new direction only takes over once momentum is below this fraction
 const GRENADE_CELLS := 6
 const INPUT_TIMEOUT_S := 0.5   # a client silent this long is treated as having released everything
 const PORT := 7777

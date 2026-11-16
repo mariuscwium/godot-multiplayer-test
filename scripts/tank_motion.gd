@@ -50,13 +50,17 @@ static func step(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_
 	return r
 
 static func _step_map(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_t: float, dt: float) -> Dictionary:
-	if input_dir == Cfg.NONE:
-		if slide_t > 0.0:
-			var t := minf(dt, slide_t)
-			pos = _advance(map, pos, facing, Cfg.TANK_SPEED * t)
-			slide_t -= dt
-			if slide_t < 0.0:
-				slide_t = 0.0
+	# Ice: momentum (slide_t) carries the tank on in its old direction with fading speed, and a new
+	# direction (turn or brake) only takes over once the momentum has faded below ICE_TURN_FRAC.
+	var sliding := slide_t > 0.0
+	var steering_locked := sliding and input_dir != Cfg.NONE and input_dir != facing \
+		and slide_t > Cfg.ICE_SLIDE_S * Cfg.ICE_TURN_FRAC
+	if input_dir == Cfg.NONE or steering_locked:
+		if sliding:
+			var frac := clampf(slide_t / Cfg.ICE_SLIDE_S, 0.0, 1.0)
+			var moved := _advance(map, pos, facing, Cfg.TANK_SPEED * frac * dt)
+			slide_t = 0.0 if moved.distance_to(pos) < 0.001 else maxf(0.0, slide_t - dt)   # a wall stops you dead
+			pos = moved
 		return {"pos": pos, "facing": facing, "slide_t": slide_t}
 	if _horizontal(input_dir) != _horizontal(facing):
 		# turning onto the other axis: snap the cross coordinate to the 8px grid
@@ -67,6 +71,8 @@ static func _step_map(map: GameMap, pos: Vector2, facing: int, input_dir: int, s
 			snapped.x = roundf(pos.x / Cfg.CELL) * Cfg.CELL
 		if _free(map, snapped):
 			pos = snapped
-	pos = _advance(map, pos, input_dir, Cfg.TANK_SPEED * dt)
-	slide_t = Cfg.ICE_SLIDE_S if _on_ice(map, pos) else 0.0
+	var driven := _advance(map, pos, input_dir, Cfg.TANK_SPEED * dt)
+	var blocked := driven.distance_to(pos) < 0.001
+	pos = driven
+	slide_t = Cfg.ICE_SLIDE_S if _on_ice(map, pos) and not blocked else 0.0
 	return {"pos": pos, "facing": input_dir, "slide_t": slide_t}
