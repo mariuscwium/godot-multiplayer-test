@@ -128,7 +128,7 @@ func _kill(victim: Tank, killer_id: int) -> void:
 	if k != null:
 		k.kills += 1
 	drop_powerup(victim.pos, rng.randi() % 3)
-	_emit({"k": "kill", "killer": killer_id, "victim": victim.id})
+	_emit({"k": "kill", "killer": killer_id, "victim": victim.id, "pos": victim.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5})
 
 func _bullets_of(id: int) -> int:
 	var n := 0

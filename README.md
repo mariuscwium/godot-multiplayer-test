@@ -1,6 +1,6 @@
 # Battle City .io
 
-A free-for-all, drop-in multiplayer tank game inspired by Battle City (NES, 1985). Godot 4.7, server-authoritative, native (UDP) and browser (WebSocket). Pixel art: terrain tiles from piiixl's Textures pack and tank sprites generated with ChatGPT (see Credits); bullets, power-ups and the HUD are drawn in code.
+A free-for-all, drop-in multiplayer tank game inspired by Battle City (NES, 1985). Godot 4.7, server-authoritative, native (UDP) and browser (WebSocket). Pixel art: terrain tiles from piiixl's Textures pack and tank sprites generated with ChatGPT (see Credits); bullets, power-ups and the HUD are drawn in code, and the explosion is from the Super Pixel Effects Gigapack.
 
 Arrows/WASD move (4 directions, like the original), Space or click fires. Brick walls take two hits (the first turns them dark red; they regrow like before), and 3-star shots break brick or steel in one. Tanks take 3 hits to kill (each star you collect adds one hit point, up to 6, and heals you one), bullets vanish after one screen of range, and a hurt tank heals slowly (1 HP every 5 s, starting 4 s after it was last hit). Kill a tank and it drops a power-up where it died: star (faster shot, then a second bullet, then steel-breaking), helmet (shield), grenade (clears bricks and bullets around you). Bricks regrow after 30-60 s.
 
@@ -59,3 +59,4 @@ LAN discovery (UDP 7778 broadcast) doesn't cross Docker's network or routers; jo
 
 ## Credits
 Terrain tiles (`assets/terrain.png`, 8 tiles cut from the 16x16 atlas by `tools/pack_terrain.gd`) are from [Textures by piiixl](https://piiixl.itch.io/textures): free for commercial use in games and projects, not for resale or redistribution as-is, so the original pack is not included here. Tank sprites (`assets/source/tank-sprite-sheet.png`, cut into `assets/tanks.png` by `tools/pack_tanks.gd`) were generated with ChatGPT for this project.
+The tank-destroyed explosion (`assets/fx/explosion_small.png`) is `stylized_explosion_001_small_yellow` from the free Super Pixel Effects Gigapack, Will Tice / unTied Games (https://untiedgames.com). The pack's licence allows use inside a game with attribution, but not redistributing the pack, so only this one sheet is included.

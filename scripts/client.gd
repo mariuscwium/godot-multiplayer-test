@@ -15,6 +15,7 @@ var snap_ms := 0
 var welcomed := false
 var msg := ""              # connection problems / status for the HUD
 var feed: Array = []       # [text, expires_ms] kill feed
+var fx: Array = []         # active explosions: {pos, born_ms}
 var shown := {}            # id -> smoothed position of remote tanks
 var my_pos := Vector2.ZERO
 var my_facing := Cfg.Dir.UP
@@ -186,12 +187,16 @@ func on_events(events: Array) -> void:
 				for c in e.c:
 					map.set_cell(c[0], c[1], c[2])
 			"kill":
+				fx.append({"pos": e.get("pos", Vector2.ZERO), "born_ms": Time.get_ticks_msec()})
 				feed.append(["%s > %s" % [roster.get(e.killer, "?"), roster.get(e.victim, "?")], Time.get_ticks_msec() + 5000])
 			"join":
 				roster[e.id] = e.name
 			"leave":
 				roster.erase(e.id)
 				shown.erase(e.id)
+
+func prune_fx(now_ms: int) -> void:
+	fx = fx.filter(func(f): return now_ms - f.born_ms < int(ExplosionFx.DURATION_S * 1000.0))
 
 func _input(e: InputEvent) -> void:
 	if e is InputEventKey and not e.echo:
@@ -290,6 +295,7 @@ func _process(delta: float) -> void:
 		print("screenshot saved: %s" % _shot)
 		get_tree().quit()
 	feed = feed.filter(func(f): return f[1] > now)
+	prune_fx(now)
 	cam.position = my_pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	var z := get_viewport_rect().size.y / VIEW_PX
 	cam.zoom = Vector2(z, z)

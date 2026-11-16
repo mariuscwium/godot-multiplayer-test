@@ -102,6 +102,7 @@ func test_bullet_kills_tank_and_credits_killer() -> void:
 	T.eq(kills.size(), 1, "one kill event")
 	T.eq(kills[0].killer, 1, "killer id")
 	T.eq(kills[0].victim, 2, "victim id")
+	T.eq(kills[0].pos, b.pos + Vector2(8, 8), "kill event carries the victim's centre so clients can play an explosion there")
 
 func test_shield_absorbs_bullet() -> void:
 	var s := _sim(_rows(20, 8))
