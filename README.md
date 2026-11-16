@@ -2,7 +2,7 @@
 
 A free-for-all, drop-in multiplayer tank game inspired by Battle City (NES, 1985). Godot 4.7, server-authoritative, native (UDP) and browser (WebSocket). Pixel art: terrain tiles from piiixl's Textures pack and tank sprites generated with ChatGPT (see Credits); bullets, power-ups and the HUD are drawn in code.
 
-Arrows/WASD move (4 directions, like the original), Space or click fires. Tanks take 3 hits to kill (each star you collect adds one hit point, up to 6, and heals you one), bullets vanish after one screen of range, and a hurt tank heals slowly (1 HP every 5 s, starting 4 s after it was last hit). Kill a tank and it drops a power-up where it died: star (faster shot, then a second bullet, then steel-breaking), helmet (shield), grenade (clears bricks and bullets around you). Bricks regrow after 30-60 s.
+Arrows/WASD move (4 directions, like the original), Space or click fires. Brick walls take two hits (the first turns them dark red; they regrow like before), and 3-star shots break brick or steel in one. Tanks take 3 hits to kill (each star you collect adds one hit point, up to 6, and heals you one), bullets vanish after one screen of range, and a hurt tank heals slowly (1 HP every 5 s, starting 4 s after it was last hit). Kill a tank and it drops a power-up where it died: star (faster shot, then a second bullet, then steel-breaking), helmet (shield), grenade (clears bricks and bullets around you). Bricks regrow after 30-60 s.
 
 ## Run
 ```

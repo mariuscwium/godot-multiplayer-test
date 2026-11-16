@@ -11,8 +11,9 @@ const PICKS := [
 	Vector2i(13, 2),   # brick
 	Vector2i(15, 3),   # steel
 	Vector2i(5, 6), Vector2i(7, 6), Vector2i(6, 6),   # water frames (the game alternates the first two)
-	Vector2i(9, 6),    # ice: frosty teal chevrons (the old pick (8,8) was a glass pane); (10,6) is a lighter alternative
+	Vector2i(10, 6),   # ice: pale blue chevrons (the first pick (8,8) was a glass pane; (9,6) is a busier teal alternative)
 	Vector2i(18, 12),  # bush
+	Vector2i(10, 2),   # damaged brick: dark maroon, so a wall hit once visibly changes colour ((18,2) dusty, (16,3) cracked are alternatives)
 ]
 const GROUND_DIM := 0.35                       # how far the ground is pulled toward dark navy
 const GROUND_DARK := Color(0.08, 0.08, 0.14)

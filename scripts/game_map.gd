@@ -56,7 +56,7 @@ func tank_blocked(rect: Rect2) -> bool:
 	for cy in range(y0, y1 + 1):
 		for cx in range(x0, x1 + 1):
 			var t := get_cell(cx, cy)
-			if t == Cfg.Tile.BRICK or t == Cfg.Tile.STEEL or t == Cfg.Tile.WATER:
+			if t == Cfg.Tile.BRICK or t == Cfg.Tile.BRICK_DAMAGED or t == Cfg.Tile.STEEL or t == Cfg.Tile.WATER:
 				return true
 	return false
 
@@ -64,13 +64,14 @@ func bullet_blocked_at(cx: int, cy: int) -> int:
 	return get_cell(cx, cy)
 
 func bullet_passes(t: int) -> bool:
-	return t != Cfg.Tile.BRICK and t != Cfg.Tile.STEEL
+	return t != Cfg.Tile.BRICK and t != Cfg.Tile.BRICK_DAMAGED and t != Cfg.Tile.STEEL
 
 func destroy(cx: int, cy: int, now: float) -> bool:
 	var t := get_cell(cx, cy)
-	if cx < 0 or cy < 0 or cx >= w or cy >= h or (t != Cfg.Tile.BRICK and t != Cfg.Tile.STEEL):
+	if cx < 0 or cy < 0 or cx >= w or cy >= h or (t != Cfg.Tile.BRICK and t != Cfg.Tile.BRICK_DAMAGED and t != Cfg.Tile.STEEL):
 		return false
-	_pending[cy * w + cx] = [t, now + rng.randf_range(Cfg.REGROW_MIN, Cfg.REGROW_MAX)]
+	var original: int = Cfg.Tile.BRICK if t == Cfg.Tile.BRICK_DAMAGED else t   # regrows at full strength
+	_pending[cy * w + cx] = [original, now + rng.randf_range(Cfg.REGROW_MIN, Cfg.REGROW_MAX)]
 	set_cell(cx, cy, Cfg.Tile.EMPTY)
 	return true
 

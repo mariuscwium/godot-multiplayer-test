@@ -23,6 +23,7 @@ func test_index_for() -> void:
 	T.eq(TerrainTiles.index_for(Cfg.Tile.BUSH, 0.0), TerrainTiles.BUSH, "bush")
 	T.eq(TerrainTiles.index_for(Cfg.Tile.ICE, 0.0), TerrainTiles.ICE, "ice")
 	T.eq(TerrainTiles.index_for(Cfg.Tile.WATER, 0.34), 4, "water follows the clock")
+	T.eq(TerrainTiles.index_for(Cfg.Tile.BRICK_DAMAGED, 0.0), TerrainTiles.BRICK_DAMAGED, "damaged brick has its own tile")
 
 func test_terrain_png_is_packed() -> void:
 	var tex := load("res://assets/terrain.png") as Texture2D   # needs the import step; same path the game uses
@@ -30,10 +31,10 @@ func test_terrain_png_is_packed() -> void:
 	var img: Image = tex.get_image() if tex else null
 	if img == null:
 		return
-	T.eq(img.get_size(), Vector2i(128, 16), "8 tiles of 16px in one row")
+	T.eq(img.get_size(), Vector2i(144, 16), "9 tiles of 16px in one row")
 	var opaque := true
 	for y in 16:
-		for x in 128:
+		for x in 144:
 			if img.get_pixel(x, y).a < 1.0:
 				opaque = false
 	T.ok(opaque, "every pixel opaque")
@@ -72,3 +73,20 @@ func test_ice_tile_has_no_glass_shine() -> void:
 			if img.get_pixel(TerrainTiles.ICE * 16 + x, y).get_luminance() > 0.85:
 				shiny += 1
 	T.ok(shiny < 8, "fewer than 8 near-white pixels in the ice tile, got %d" % shiny)
+
+func test_damaged_brick_tile_is_a_clearly_different_colour() -> void:
+	var tex := load("res://assets/terrain.png") as Texture2D
+	if tex == null:
+		T.ok(false, "assets/terrain.png loads")
+		return
+	var img := tex.get_image()
+	var mean_a := Color(0, 0, 0)
+	var mean_b := Color(0, 0, 0)
+	for y in 16:
+		for x in 16:
+			mean_a += img.get_pixel(TerrainTiles.BRICK * 16 + x, y)
+			mean_b += img.get_pixel(TerrainTiles.BRICK_DAMAGED * 16 + x, y)
+	mean_a /= 256.0
+	mean_b /= 256.0
+	var d := absf(mean_a.r - mean_b.r) + absf(mean_a.g - mean_b.g) + absf(mean_a.b - mean_b.b)
+	T.ok(d > 0.25, "average colour differs noticeably after the first hit, got %.2f" % d)

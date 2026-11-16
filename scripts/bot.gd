@@ -55,7 +55,7 @@ static func _ahead(map: GameMap, pos: Vector2, dir: int) -> int:
 		var t := map.get_cell(floori(p.x / Cfg.CELL), floori(p.y / Cfg.CELL))
 		if t == Cfg.Tile.STEEL or t == Cfg.Tile.WATER:
 			return HARD
-		if t == Cfg.Tile.BRICK:
+		if t == Cfg.Tile.BRICK or t == Cfg.Tile.BRICK_DAMAGED:
 			result = BRICK
 	return result
 

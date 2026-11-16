@@ -81,3 +81,12 @@ func test_never_outputs_invalid_dir() -> void:
 		var r := Bot.decide(m, _me(Vector2(rng.randf_range(0, 140), rng.randf_range(0, 140)), rng.randi_range(0, 3)), others, rng)
 		T.ok(r.dir >= -1 and r.dir <= 3, "dir %s out of range" % str(r.dir))
 		T.ok(typeof(r.fire) == TYPE_BOOL, "fire is a bool")
+
+func test_damaged_brick_ahead_is_shot_too() -> void:
+	var rows := _open()
+	var m := _map(rows)
+	m.set_cell(0, 4, Cfg.Tile.BRICK_DAMAGED)
+	m.set_cell(1, 4, Cfg.Tile.BRICK_DAMAGED)
+	var r := Bot.decide(m, _me(Vector2(0, 16), Cfg.Dir.DOWN), [_enemy(Vector2(100, 60))], _rng())
+	T.eq(r.dir, Cfg.Dir.DOWN, "keeps heading for the enemy")
+	T.eq(r.fire, true, "shoots the damaged brick")

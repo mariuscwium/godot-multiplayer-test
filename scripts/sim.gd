@@ -284,10 +284,15 @@ func _bullet_pair(b: Bullet) -> Array:
 	var first := roundi((b.pos.x - Cfg.CELL) / float(Cfg.CELL))
 	return [Vector2i(first, cy), Vector2i(first + 1, cy)]
 
+# Brick takes two hits (the first turns it into BRICK_DAMAGED); a 3-star shot breaks brick or steel outright.
 func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
+	var heavy := b.stars >= Cfg.MAX_STARS
 	for c in pair:
 		var t := map.get_cell(c.x, c.y)
-		if t == Cfg.Tile.BRICK or (t == Cfg.Tile.STEEL and b.stars >= Cfg.MAX_STARS):
+		if t == Cfg.Tile.BRICK and not heavy:
+			map.set_cell(c.x, c.y, Cfg.Tile.BRICK_DAMAGED)
+			_cells.append([c.x, c.y, Cfg.Tile.BRICK_DAMAGED])
+		elif t == Cfg.Tile.BRICK or t == Cfg.Tile.BRICK_DAMAGED or (t == Cfg.Tile.STEEL and heavy):
 			if map.destroy(c.x, c.y, time):
 				_cells.append([c.x, c.y, Cfg.Tile.EMPTY])
 
@@ -333,7 +338,8 @@ func _grenade(t: Tank) -> void:
 	var r := Cfg.GRENADE_CELLS * float(Cfg.CELL)
 	for cy in range(floori((c.y - r) / Cfg.CELL), ceili((c.y + r) / Cfg.CELL) + 1):
 		for cx in range(floori((c.x - r) / Cfg.CELL), ceili((c.x + r) / Cfg.CELL) + 1):
-			if map.get_cell(cx, cy) != Cfg.Tile.BRICK:
+			var tile := map.get_cell(cx, cy)
+			if tile != Cfg.Tile.BRICK and tile != Cfg.Tile.BRICK_DAMAGED:
 				continue
 			var cc := Vector2(cx + 0.5, cy + 0.5) * Cfg.CELL
 			if cc.distance_to(c) <= r and map.destroy(cx, cy, time):

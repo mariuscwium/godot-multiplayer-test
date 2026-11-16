@@ -74,11 +74,12 @@ func test_pickup_helmet_sets_shield() -> void:
 
 func test_grenade_clears_nearby_brick_and_bullets_not_tanks() -> void:
 	var rows := _rows(60, 10)
-	_put(rows, 3, 2, "B")      # near
+	_put(rows, 3, 2, ".")      # near: set to damaged brick below
 	_put(rows, 5, 3, "B")      # near
 	_put(rows, 4, 1, "S")      # steel survives
 	_put(rows, 40, 2, "B")     # far
 	var s := _sim(rows)
+	s.map.set_cell(3, 2, Cfg.Tile.BRICK_DAMAGED)
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var e := _tank(s, 2, Vector2(40, 40), Cfg.Dir.LEFT)
 	var near_b := Sim.Bullet.new()
@@ -92,7 +93,7 @@ func test_grenade_clears_nearby_brick_and_bullets_not_tanks() -> void:
 	s.bullets = [near_b, far_b]
 	s.drop_powerup(Vector2(0, 16), Cfg.PowerType.GRENADE)
 	s.step(1.0 / 30)
-	T.eq(s.map.get_cell(3, 2), Cfg.Tile.EMPTY, "near brick gone")
+	T.eq(s.map.get_cell(3, 2), Cfg.Tile.EMPTY, "near damaged brick gone too")
 	T.eq(s.map.get_cell(5, 3), Cfg.Tile.EMPTY, "near brick gone 2")
 	T.eq(s.map.get_cell(4, 1), Cfg.Tile.STEEL, "steel stays")
 	T.eq(s.map.get_cell(40, 2), Cfg.Tile.BRICK, "far brick stays")

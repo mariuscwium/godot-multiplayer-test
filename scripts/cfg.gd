@@ -27,7 +27,7 @@ const INPUT_TIMEOUT_S := 0.5   # a client silent this long is treated as having 
 const PORT := 7777
 const NONE := -1
 
-enum Tile { EMPTY, BRICK, STEEL, BUSH, WATER, ICE }
+enum Tile { EMPTY, BRICK, STEEL, BUSH, WATER, ICE, BRICK_DAMAGED }   # BRICK_DAMAGED only appears in play: a brick hit once
 enum Dir { UP, RIGHT, DOWN, LEFT }
 enum PowerType { STAR, HELMET, GRENADE }
 

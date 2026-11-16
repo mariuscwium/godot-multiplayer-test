@@ -110,3 +110,17 @@ func test_arena_has_24_spawns_and_is_connected() -> void:
 			stack.append(c + d)
 	for p in m.spawn_points():
 		T.ok(seen.has(Vector2i(int(p.x / Cfg.CELL), int(p.y / Cfg.CELL))), "spawn %s reachable from spawn 0" % str(p))
+
+func test_damaged_brick_blocks_tank_and_bullets() -> void:
+	var m := _map("...\n...")
+	m.set_cell(0, 0, Cfg.Tile.BRICK_DAMAGED)
+	T.ok(m.tank_blocked(Rect2(0, 0, 8, 8)), "blocks tanks")
+	T.ok(not m.bullet_passes(Cfg.Tile.BRICK_DAMAGED), "stops bullets")
+
+func test_destroying_a_damaged_brick_regrows_a_full_brick() -> void:
+	var m := _map("...\n...")
+	m.set_cell(0, 0, Cfg.Tile.BRICK_DAMAGED)
+	T.ok(m.destroy(0, 0, 0.0), "destroyed")
+	T.eq(m.get_cell(0, 0), Cfg.Tile.EMPTY, "gone")
+	var r := m.regrow_due(60.1, func(_r: Rect2) -> bool: return false)
+	T.eq(r, [[0, 0, Cfg.Tile.BRICK]], "comes back as a full-strength brick")

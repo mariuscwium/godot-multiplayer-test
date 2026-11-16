@@ -134,10 +134,8 @@ func test_brick_destroyed_two_cells_wide() -> void:
 		_put(rows, 8, y, "B")
 	var s := _sim(rows)
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.NONE, true, 1)
-	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 2)
-	_run(s, 1.0)
+	_shoot_wall(s, 1)
+	_shoot_wall(s, 1)
 	T.eq(s.map.get_cell(8, 2), Cfg.Tile.EMPTY, "row 2 destroyed")
 	T.eq(s.map.get_cell(8, 3), Cfg.Tile.EMPTY, "row 3 destroyed")
 	T.eq(s.map.get_cell(8, 1), Cfg.Tile.BRICK, "row 1 intact")
@@ -217,6 +215,10 @@ func test_set_input_rejects_bad_dir() -> void:
 	s.set_input(99, 1, false, 1)
 	T.ok(not s.tanks.has(99), "unknown id ignored")
 
+func _shoot_wall(s: Sim, id: int) -> void:   # one shot at whatever is ahead, then let it land
+	_fire_once(s, id)
+	_run(s, 1.0)
+
 func _fire_once(s: Sim, id: int) -> void:
 	s.set_input(id, Cfg.NONE, true, 100)
 	s.step(1.0 / 30)
@@ -228,8 +230,8 @@ func test_brick_shot_from_half_tile_offset_hits_cells_in_front() -> void:
 		_put(rows, 8, y, "B")
 	var s := _sim(rows)
 	_tank(s, 1, Vector2(0, 8), Cfg.Dir.RIGHT)   # spans rows 1-2, centreline on the row 1/2 boundary
-	_fire_once(s, 1)
-	_run(s, 1.0)
+	_shoot_wall(s, 1)
+	_shoot_wall(s, 1)
 	T.eq(s.map.get_cell(8, 1), Cfg.Tile.EMPTY, "row 1 destroyed")
 	T.eq(s.map.get_cell(8, 2), Cfg.Tile.EMPTY, "row 2 destroyed")
 	T.eq(s.map.get_cell(8, 0), Cfg.Tile.BRICK, "row 0 intact")
@@ -240,8 +242,8 @@ func test_brick_in_one_column_of_the_tank_is_hit() -> void:
 	_put(rows, 3, 2, "B")
 	var s := _sim(rows)
 	_tank(s, 1, Vector2(24, 48), Cfg.Dir.UP)    # spans columns 3-4
-	_fire_once(s, 1)
-	_run(s, 1.0)
+	_shoot_wall(s, 1)
+	_shoot_wall(s, 1)
 	T.eq(s.map.get_cell(3, 2), Cfg.Tile.EMPTY, "the brick in the left column is shot, not flown past")
 	T.eq(s.bullets.size(), 0, "bullet consumed")
 
@@ -252,9 +254,10 @@ func test_map_rev_counts_terrain_events() -> void:
 	var s := _sim(rows)
 	T.eq(s.map_rev, 0, "starts at 0")
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	_fire_once(s, 1)
-	_run(s, 1.0)
-	T.eq(s.map_rev, 1, "one cells event so far")
+	_shoot_wall(s, 1)
+	T.eq(s.map_rev, 1, "the first hit damages the brick: one cells event")
+	_shoot_wall(s, 1)
+	T.eq(s.map_rev, 2, "the second hit destroys it: another")
 
 func test_input_times_out() -> void:
 	var s := _sim(_rows(40, 8))
@@ -416,3 +419,37 @@ func test_respawn_resets_to_base_hp_and_stars() -> void:
 	T.ok(b.alive, "respawned")
 	T.eq(b.stars, 0, "stars reset")
 	T.eq(b.hp, Cfg.MAX_HP, "back to the base maximum")
+
+func test_brick_takes_two_shots() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "B")
+	_put(rows, 8, 3, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	T.eq(s.map.get_cell(8, 2), Cfg.Tile.BRICK_DAMAGED, "first shot: row 2 damaged, not gone")
+	T.eq(s.map.get_cell(8, 3), Cfg.Tile.BRICK_DAMAGED, "first shot: row 3 damaged")
+	var first := s.drain_events().filter(func(e): return e.k == "cells")
+	T.ok(first.size() >= 1 and first[0].c[0][2] == Cfg.Tile.BRICK_DAMAGED, "clients are told the new tile")
+	_shoot_wall(s, 1)
+	T.eq(s.map.get_cell(8, 2), Cfg.Tile.EMPTY, "second shot destroys it")
+	T.eq(s.map.get_cell(8, 3), Cfg.Tile.EMPTY, "both cells")
+
+func test_three_star_shot_destroys_brick_in_one_hit() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "B")
+	_put(rows, 8, 3, "B")
+	var s := _sim(rows)
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.stars = 3
+	_shoot_wall(s, 1)
+	T.eq(s.map.get_cell(8, 2), Cfg.Tile.EMPTY, "heavy shot goes straight through the brick")
+
+func test_a_damaged_brick_still_stops_bullets() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "B")
+	_put(rows, 8, 3, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	T.eq(s.bullets.size(), 0, "the first bullet was stopped by the brick")

@@ -9,6 +9,7 @@ const STEEL := 2
 const WATER0 := 3      # water alternates frames 3 and 4 (tile 5 is a deeper shade, kept in the strip but unused)
 const ICE := 6
 const BUSH := 7
+const BRICK_DAMAGED := 8
 
 static func water_index(t: float) -> int:
 	return WATER0 + int(t * 3.0) % 2
@@ -16,6 +17,7 @@ static func water_index(t: float) -> int:
 static func index_for(terrain: int, t: float) -> int:
 	match terrain:
 		Cfg.Tile.BRICK: return BRICK
+		Cfg.Tile.BRICK_DAMAGED: return BRICK_DAMAGED
 		Cfg.Tile.STEEL: return STEEL
 		Cfg.Tile.WATER: return water_index(t)
 		Cfg.Tile.ICE: return ICE
