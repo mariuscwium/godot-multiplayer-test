@@ -10,6 +10,11 @@ const SHEETS := {
 	"hit_tank": "Impacts/symmetrical_impact_002/symmetrical_impact_002_small_blue",
 	"hit_brick": "Impacts/symmetrical_impact_001/symmetrical_impact_001_small_yellow",
 	"hit_steel": "Impacts/directional_impact_001/directional_impact_001_small_blue",
+	"pickup_star": "Fantasy Spells/spell_attack_up_001/spell_attack_up_001_small_red",
+	"pickup_helmet": "Fantasy Spells/spell_defense_up_001/spell_defense_up_001_small_blue",
+	"blast": "Explosions/stylized_explosion_001/stylized_explosion_001_large_yellow",
+	"heal": "Fantasy Spells/spell_heal_001/spell_heal_001_small_red",
+	"drop_sparkle": "Magic Bursts/round_sparkle_burst_001/round_sparkle_burst_001_small_blue",
 }
 
 func _init() -> void:

@@ -154,6 +154,7 @@ func step(dt: float) -> void:
 			if t.heal_t >= Cfg.HEAL_INTERVAL_S:
 				t.hp += 1
 				t.heal_t = 0.0
+				_fx("heal", t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5)
 		else:
 			t.heal_t = 0.0
 		if not t.alive:
@@ -312,6 +313,7 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 func drop_powerup(pos: Vector2, type: int) -> void:
 	var snapped := (pos / Cfg.CELL).round() * Cfg.CELL
 	powerups.append({"id": _next_powerup, "pos": snapped, "type": type, "ttl": Cfg.POWERUP_TTL})
+	_fx("drop_sparkle", snapped + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5)
 	_next_powerup += 1
 
 func _update_powerups(dt: float) -> void:
@@ -335,14 +337,18 @@ func _update_powerups(dt: float) -> void:
 	powerups = keep
 
 func _apply_powerup(t: Tank, type: int) -> void:
+	var centre := t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	match type:
 		Cfg.PowerType.STAR:
+			_fx("pickup_star", centre)
 			if t.stars < Cfg.MAX_STARS:
 				t.stars += 1
 				t.hp += 1   # the new maximum comes with the extra point straight away
 		Cfg.PowerType.HELMET:
+			_fx("pickup_helmet", centre)
 			t.shield_t = Cfg.HELMET_S
 		Cfg.PowerType.GRENADE:
+			_fx("blast", centre)
 			_grenade(t)
 
 # FFA grenade: wipes bricks and bullets within GRENADE_RADIUS cells; never touches tanks or steel.

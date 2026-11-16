@@ -148,3 +148,74 @@ func test_star_at_max_stars_gives_no_hp() -> void:
 	T.eq(t.stars, 3, "capped")
 	T.eq(t.hp, 6, "no further hp")
 	T.eq(s.powerups.size(), 0, "still consumed")
+
+func _fx_events(s: Sim, kind: String) -> Array:
+	return s.drain_events().filter(func(e): return e.k == "fx" and e.fx == kind)
+
+func test_star_pickup_emits_its_effect() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.STAR)
+	s.drain_events()
+	s.step(1.0 / 30)
+	var fx := _fx_events(s, "pickup_star")
+	T.eq(fx.size(), 1, "one effect")
+	T.eq(fx[0].pos, t.pos + Vector2(8, 8), "on the tank that took it")
+
+func test_star_pickup_at_max_stars_still_shows_its_effect() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	t.stars = 3
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.STAR)
+	s.drain_events()
+	s.step(1.0 / 30)
+	T.eq(_fx_events(s, "pickup_star").size(), 1, "the pickup happened, so it shows")
+
+func test_helmet_pickup_emits_its_effect() -> void:
+	var s := _sim(_rows(20, 8))
+	_tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.HELMET)
+	s.drain_events()
+	s.step(1.0 / 30)
+	T.eq(_fx_events(s, "pickup_helmet").size(), 1, "shield burst")
+
+func test_grenade_emits_a_blast() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.GRENADE)
+	s.drain_events()
+	s.step(1.0 / 30)
+	var fx := _fx_events(s, "blast")
+	T.eq(fx.size(), 1, "one blast")
+	T.eq(fx[0].pos, t.pos + Vector2(8, 8), "centred on the tank that took it")
+
+func test_dead_tanks_trigger_no_pickup_effect() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(16, 16), Cfg.Dir.RIGHT)
+	t.alive = false
+	t.respawn_t = 100.0
+	s.drop_powerup(Vector2(16, 16), Cfg.PowerType.STAR)
+	s.drain_events()
+	s.step(1.0 / 30)
+	T.eq(_fx_events(s, "pickup_star").size(), 0, "nothing was picked up")
+
+func test_heal_tick_emits_a_heart_effect_per_healed_point() -> void:
+	var s := _sim(_rows(20, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	t.hp = 1
+	t.last_hit = s.time
+	s.drain_events()
+	var hearts := 0
+	for i in int((Cfg.HEAL_DELAY_S + 3.0 * Cfg.HEAL_INTERVAL_S) * Cfg.TICK_HZ):
+		s.set_input(1, Cfg.NONE, false, i + 1)
+		s.step(1.0 / Cfg.TICK_HZ)
+		hearts += s.drain_events().filter(func(e): return e.k == "fx" and e.fx == "heal").size()
+	T.eq(t.hp, 3, "healed to full")
+	T.eq(hearts, 2, "one heart effect for each of the two healed points, none at full health")
+
+func test_drop_emits_a_sparkle_where_the_powerup_lands() -> void:
+	var s := _sim(_rows(20, 8))
+	s.drop_powerup(Vector2(64, 16), Cfg.PowerType.STAR)
+	var fx := _fx_events(s, "drop_sparkle")
+	T.eq(fx.size(), 1, "one sparkle")
+	T.eq(fx[0].pos, Vector2(72, 24), "at the centre of the power-up")
