@@ -36,6 +36,7 @@ var rng := RandomNumberGenerator.new()
 var _events: Array = []
 var _cells: Array = []             # [cx, cy, tile] changes this step
 var _next_bullet := 1
+var _next_powerup := 1
 
 func _init(map_: GameMap, seed_: int = 0) -> void:
 	map = map_
@@ -117,6 +118,7 @@ func _kill(victim: Tank, killer_id: int) -> void:
 	var k: Tank = tanks.get(killer_id)
 	if k != null:
 		k.kills += 1
+	drop_powerup(victim.pos, rng.randi() % 3)
 	_emit({"k": "kill", "killer": killer_id, "victim": victim.id})
 
 func _bullets_of(id: int) -> int:
@@ -142,6 +144,7 @@ func step(dt: float) -> void:
 		var t: Tank = tanks[id]
 		if t.alive:
 			_move_tank(t, dt)
+	_update_powerups(dt)
 	for id in ids:
 		var t: Tank = tanks[id]
 		if t.alive and t.input_fire:
@@ -254,3 +257,50 @@ func _bullet_hit_terrain(b: Bullet, cx: int, cy: int) -> void:
 		if t == Cfg.Tile.BRICK or (t == Cfg.Tile.STEEL and b.stars >= Cfg.MAX_STARS):
 			if map.destroy(x, y, time):
 				_cells.append([x, y, Cfg.Tile.EMPTY])
+
+func drop_powerup(pos: Vector2, type: int) -> void:
+	var snapped := (pos / Cfg.CELL).round() * Cfg.CELL
+	powerups.append({"id": _next_powerup, "pos": snapped, "type": type, "ttl": Cfg.POWERUP_TTL})
+	_next_powerup += 1
+
+func _update_powerups(dt: float) -> void:
+	var keep := []
+	for p in powerups:
+		p.ttl -= dt
+		if p.ttl <= 0.0:
+			_emit({"k": "powerup_gone", "id": p.id})
+			continue
+		var rect := Rect2(p.pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX))
+		var taker: Tank = null
+		for t in tanks.values():
+			if t.alive and tank_rect(t).intersects(rect):
+				taker = t
+				break
+		if taker == null:
+			keep.append(p)
+			continue
+		_apply_powerup(taker, p.type)
+		_emit({"k": "pickup", "id": p.id, "tank": taker.id, "type": p.type})
+	powerups = keep
+
+func _apply_powerup(t: Tank, type: int) -> void:
+	match type:
+		Cfg.PowerType.STAR:
+			t.stars = mini(t.stars + 1, Cfg.MAX_STARS)
+		Cfg.PowerType.HELMET:
+			t.shield_t = Cfg.HELMET_S
+		Cfg.PowerType.GRENADE:
+			_grenade(t)
+
+# FFA grenade: wipes bricks and bullets within GRENADE_RADIUS cells; never touches tanks or steel.
+func _grenade(t: Tank) -> void:
+	var c := t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
+	var r := Cfg.GRENADE_CELLS * float(Cfg.CELL)
+	for cy in range(floori((c.y - r) / Cfg.CELL), ceili((c.y + r) / Cfg.CELL) + 1):
+		for cx in range(floori((c.x - r) / Cfg.CELL), ceili((c.x + r) / Cfg.CELL) + 1):
+			if map.get_cell(cx, cy) != Cfg.Tile.BRICK:
+				continue
+			var cc := Vector2(cx + 0.5, cy + 0.5) * Cfg.CELL
+			if cc.distance_to(c) <= r and map.destroy(cx, cy, time):
+				_cells.append([cx, cy, Cfg.Tile.EMPTY])
+	bullets = bullets.filter(func(b): return b.pos.distance_to(c) > r)
