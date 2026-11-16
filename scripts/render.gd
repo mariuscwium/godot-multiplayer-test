@@ -30,7 +30,9 @@ func _process(_d: float) -> void:
 
 func _visible_cells() -> Rect2i:
 	var half := get_viewport_rect().size / client.cam.zoom * 0.5
-	var c: Vector2 = client.cam.position
+	# cam.position is only where we ask the camera to be: map-edge limits shift the real view,
+	# so cull around the centre the camera actually shows
+	var c: Vector2 = client.cam.get_screen_center_position()
 	return Rect2i(floori((c.x - half.x) / C) - 1, floori((c.y - half.y) / C) - 1,
 		ceili(half.x * 2.0 / C) + 3, ceili(half.y * 2.0 / C) + 3)
 
