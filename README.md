@@ -58,4 +58,4 @@ LAN discovery (UDP 7778 broadcast) doesn't cross Docker's network or routers; jo
 `scripts/sim.gd` holds the authoritative game rules and is pure logic (no nodes); `scripts/tank_motion.gd` is the movement step shared by the server and the client's prediction. `server.gd`, `client.gd`, `net.gd` (all RPCs) do the networking; `render.gd`/`hud.gd` draw. Design and plan: `docs/superpowers/`.
 
 ## Credits
-Terrain tiles (`assets/terrain.png`, cut by `tools/pack_terrain.gd`) are from Screaming Brain Studios' [Tiny Texture Pack](https://screamingbrainstudios.itch.io/tiny-texture-pack), CC0 / public domain.
+Terrain tiles (`assets/terrain.png`, 8 tiles cut from the 16x16 atlas by `tools/pack_terrain.gd`) are from [Textures by piiixl](https://piiixl.itch.io/textures): free for commercial use in games and projects, not for resale or redistribution as-is, so the original pack is not included here. Tank sprites (`assets/source/tank-sprite-sheet.png`) were generated with ChatGPT for this project.

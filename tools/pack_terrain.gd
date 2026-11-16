@@ -1,5 +1,6 @@
 extends SceneTree
-# Cuts the picked 16x16 tiles out of the Tiny Texture Pack atlas (Screaming Brain Studios, CC0)
+# Cuts the picked 16x16 tiles out of the Textures atlas by piiixl (https://piiixl.itch.io/textures;
+# free for use in games, no resale/redistribution as-is: commit only the packed tiles, never the pack)
 # into assets/terrain.png, one row in the order TerrainTiles expects.
 # Run: godot --headless --path . -s tools/pack_terrain.gd -- /path/to/Textures-16.png
 # Picks are (column, row) in the atlas's 16 px grid.

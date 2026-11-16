@@ -4,7 +4,7 @@
 Replace the code-drawn terrain (flat rects and lines in `scripts/render.gd`) with pixel-art tiles for a fresher look. The author chose a "fresher pixel art" style over faithful NES. Behaviour must not change.
 
 ## Source
-Tiles come from `Textures-16.png` (author's Downloads), from Screaming Brain Studios' "Tiny Texture Pack" (https://screamingbrainstudios.itch.io/tiny-texture-pack), listed as CC0 / public domain: no attribution required, redistribution allowed. A courtesy credit line goes in the README. (The designer could not verify the local file is byte-identical to that pack.)
+Tiles come from `Textures-16.png` in "Textures" by piiixl (https://piiixl.itch.io/textures). Licence as stated on the page: free for commercial use, use in games and projects allowed, **no resale or redistribution as-is**; attribution not required (the page also shows a CC BY 4.0 badge, so we credit anyway). The repo therefore holds only the 8 packed tiles, never the pack. *(Correction: this doc first named Screaming Brain Studios / CC0, which was the wrong pack.)*
 
 ## Goals
 - Brick, steel, water (animated), ice, bush and ground drawn from tile art.

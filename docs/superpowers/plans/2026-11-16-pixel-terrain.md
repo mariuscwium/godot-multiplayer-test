@@ -4,14 +4,14 @@
 
 **Goal:** Draw brick, steel, water, ice, bush and ground from pixel-art tiles instead of code-drawn rectangles, with no behaviour change.
 
-**Architecture:** A one-row tile strip `assets/terrain.png` (cut from the author's CC0 atlas by a small tool) plus a pure lookup class `TerrainTiles` that maps (terrain, cell, time) to a source rect. `Render` draws each 8 px cell from the matching quarter of its 16x16 tile with nearest-neighbour filtering.
+**Architecture:** A one-row tile strip `assets/terrain.png` (cut from the author's licensed atlas by a small tool) plus a pure lookup class `TerrainTiles` that maps (terrain, cell, time) to a source rect. `Render` draws each 8 px cell from the matching quarter of its 16x16 tile with nearest-neighbour filtering.
 
 **Tech Stack:** Godot 4.7.2 / GDScript, existing headless test runner (`tools/test.sh`).
 
 **Spec:** `docs/superpowers/specs/2026-11-16-pixel-terrain-design.md`
 
 ## Global Constraints
-- Source atlas: `/mnt/c/Users/wium/Downloads/Textures-16.png` (Screaming Brain Studios "Tiny Texture Pack", CC0); copy only the used tiles into the repo, never the whole atlas.
+- Source atlas: `/mnt/c/Users/wium/Downloads/Textures-16.png` ("Textures" by piiixl, https://piiixl.itch.io/textures: free for games, no redistribution as-is); copy only the used tiles into the repo, never the whole atlas.
 - Tile picks, (column, row) in the 16 px source grid: ground (0,10), brick (3,3), steel (8,4), water (6,8) (7,8) (8,8), ice (3,11), bush (2,16).
 - Cells stay 8 px (`Cfg.CELL`); tiles are 16x16, so a cell draws the quarter at (`posmod(cx,2)`, `posmod(cy,2)`).
 - No gameplay, network or simulation change; tanks, bullets, power-ups and HUD stay as drawn today.
@@ -69,7 +69,7 @@
 - [ ] **Step 3: Verify locally**: `tools/test.sh` -> all PASS; start a server and 3 bots, run a client with `--shot=<png>`; read the screenshot and confirm every terrain type shows its tile, edges between neighbouring tiles are crisp (zoom into a crop with a Godot script if needed), and the black outside-map area is unchanged.
 - [ ] **Step 4: Verify bush layering**: take screenshots until a bot is inside a bush cell (or place the local client's view on one) and confirm the tank is hidden; if none shows in 5 shots, state that plainly in the task report.
 - [ ] **Step 5: Verify web**: `tools/export_web.sh`, serve `build/web/`, load it with the headless Chromium used previously (`?server=ws://localhost:7777`) against a `--server --ws` instance, screenshot, confirm the terrain tiles render (not black/missing).
-- [ ] **Step 6: README**: under the existing layout section add a credit line: textures from Screaming Brain Studios' "Tiny Texture Pack" (CC0), link `https://screamingbrainstudios.itch.io/tiny-texture-pack`.
+- [ ] **Step 6: README**: under the existing layout section add a credit line: textures by piiixl (link above); the pack itself is not included.
 - [ ] **Step 7: Commit** `scripts/render.gd README.md` — message `Draw terrain from pixel-art tiles`.
 
 ---
