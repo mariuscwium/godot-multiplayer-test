@@ -504,3 +504,61 @@ func test_no_impact_effect_when_a_bullet_just_expires() -> void:
 	_shoot_wall(s, 1)
 	var fx := s.drain_events().filter(func(e): return e.k == "fx" and e.fx.begins_with("hit_"))
 	T.eq(fx.size(), 0, "nothing was hit")
+
+func test_spawn_and_respawn_emit_a_warp_at_the_tank_centre() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 10, 5, "P")
+	var s := _sim(rows)
+	s.add_tank(1, "a")
+	var first := _fx_events(s, "warp_in")
+	T.eq(first.size(), 1, "joining plays a warp-in")
+	T.eq(first[0].pos, s.tanks[1].pos + Vector2(8, 8), "at the tank centre")
+	_tank(s, 2, Vector2(0, 16), Cfg.Dir.RIGHT)
+	s.drain_events()
+	var b := _tank(s, 3, Vector2(64, 16), Cfg.Dir.LEFT)
+	s.drain_events()
+	_fire_once(s, 2)
+	_run(s, 0.5)
+	T.ok(not b.alive, "tank 3 was destroyed")
+	s.drain_events()
+	_run(s, 2.0)
+	T.eq(_fx_events(s, "warp_in").size(), 1, "and again when it respawns")
+
+func test_firing_emits_one_muzzle_flash_per_bullet_rotated_to_the_facing() -> void:
+	for facing in [Cfg.Dir.UP, Cfg.Dir.RIGHT, Cfg.Dir.DOWN, Cfg.Dir.LEFT]:
+		var s := _sim(_rows(30, 30))
+		var t := _tank(s, 1, Vector2(100, 100), facing)
+		s.drain_events()
+		s.set_input(1, Cfg.NONE, true, 1)
+		s.step(1.0 / 30)
+		var fx := _fx_events(s, "muzzle")
+		T.eq(fx.size(), 1, "one flash, facing %d" % facing)
+		if fx.size() == 1:
+			T.near(fx[0].rot, TankSprite.angle(facing), 0.0001, "rotated to the barrel, facing %d" % facing)
+			T.eq(fx[0].pos, t.pos + Vector2(8, 8) + Cfg.dir_vec(facing) * 8.0, "at the muzzle, facing %d" % facing)
+
+func test_holding_fire_gives_one_flash_per_bullet_not_per_tick() -> void:
+	var s := _sim(_rows(120, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	s.drain_events()
+	var flashes := 0
+	for i in 30:
+		s.set_input(1, Cfg.NONE, true, i + 1)
+		s.step(1.0 / 30)
+		flashes += s.drain_events().filter(func(e): return e.k == "fx" and e.fx == "muzzle").size()
+	T.ok(flashes >= 1 and flashes <= 2, "a second of held fire fires one or two bullets, got %d flashes" % flashes)
+
+func test_refused_fire_emits_no_flash() -> void:
+	var s := _sim(_rows(120, 8))
+	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	s.set_input(1, Cfg.NONE, true, 1)
+	s.step(1.0 / 30)
+	s.drain_events()
+	s.set_input(1, Cfg.NONE, true, 2)
+	s.step(1.0 / 30)
+	T.eq(_fx_events(s, "muzzle").size(), 0, "the bullet limit is reached: no flash")
+	t.alive = false
+	t.respawn_t = 100.0
+	s.set_input(1, Cfg.NONE, true, 3)
+	s.step(1.0 / 30)
+	T.eq(_fx_events(s, "muzzle").size(), 0, "a dead tank does not fire")

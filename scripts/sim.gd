@@ -96,6 +96,7 @@ func _respawn(t: Tank) -> void:
 	t.slide_t = 0.0
 	t.last_input = time
 	_emit({"k": "spawn", "id": t.id})
+	_fx("warp_in", t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5)
 
 # Prefer a spawn not overlapping a living tank, farthest from the nearest one.
 func _pick_spawn(self_tank: Tank) -> Vector2:
@@ -209,6 +210,7 @@ func _fire(t: Tank) -> void:
 	b.stars = t.stars
 	b.pos = t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.dir_vec(t.facing) * 8.0
 	bullets.append(b)
+	_fx("muzzle", b.pos, TankSprite.angle(t.facing))
 
 func _step_bullets(dt: float) -> void:
 	if bullets.is_empty():
