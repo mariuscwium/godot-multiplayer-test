@@ -196,17 +196,17 @@ func on_events(events: Array) -> void:
 				feed.append(["%s > %s" % [roster.get(e.killer, "?"), roster.get(e.victim, "?")], Time.get_ticks_msec() + 5000])
 			"fx":
 				if typeof(e.get("fx")) == TYPE_STRING and typeof(e.get("pos")) == TYPE_VECTOR2:
-					_add_fx(e.fx, e.pos, float(e.get("rot", 0.0)))
+					_add_fx(e.fx, e.pos, float(e.get("rot", 0.0)), e.tank if typeof(e.get("tank")) == TYPE_INT else 0)
 			"join":
 				roster[e.id] = e.name
 			"leave":
 				roster.erase(e.id)
 				shown.erase(e.id)
 
-func _add_fx(kind: String, pos: Vector2, rot: float) -> void:
+func _add_fx(kind: String, pos: Vector2, rot: float, tank: int = 0) -> void:
 	if not Effects.has(kind):
 		return
-	fx.append({"kind": kind, "pos": pos, "rot": rot, "born_ms": Time.get_ticks_msec()})
+	fx.append({"kind": kind, "pos": pos, "rot": rot, "tank": tank, "born_ms": Time.get_ticks_msec()})
 	while fx.size() > 64:
 		fx.pop_front()
 

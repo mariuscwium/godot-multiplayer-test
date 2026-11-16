@@ -535,7 +535,7 @@ func test_firing_emits_one_muzzle_flash_per_bullet_rotated_to_the_facing() -> vo
 		T.eq(fx.size(), 1, "one flash, facing %d" % facing)
 		if fx.size() == 1:
 			T.near(fx[0].rot, TankSprite.angle(facing), 0.0001, "rotated to the barrel, facing %d" % facing)
-			T.eq(fx[0].pos, t.pos + Vector2(8, 8) + Cfg.dir_vec(facing) * 8.0, "at the muzzle, facing %d" % facing)
+			T.eq(fx[0].pos, t.pos + Vector2(8, 8) + Cfg.dir_vec(facing) * 16.0, "just outside the barrel tip (the flash starts at its sheet's edge), facing %d" % facing)
 
 func test_holding_fire_gives_one_flash_per_bullet_not_per_tick() -> void:
 	var s := _sim(_rows(120, 8))
@@ -635,3 +635,62 @@ func test_a_fresh_tank_can_fire_on_its_first_tick() -> void:
 	s.set_input(1, Cfg.NONE, true, 1)
 	s.step(1.0 / Cfg.TICK_HZ)
 	T.eq(s.bullets.size(), 1, "no waiting before the first shot")
+
+func test_firing_into_steel_or_the_map_edge_is_rate_limited() -> void:
+	var rows := _rows(20, 8)
+	for y in [1, 2, 3, 4]:
+		_put(rows, 3, y, "S")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(8, 16), Cfg.Dir.RIGHT)
+	T.ok(_muzzle_times(s, 2.0).size() <= 6, "point-blank at steel: no spam")
+	var e := _sim(_rows(20, 8))
+	_tank(e, 1, Vector2(0, 16), Cfg.Dir.LEFT)   # barrel against the map edge
+	T.ok(_muzzle_times(e, 2.0).size() <= 6, "point-blank at the map edge: no spam")
+
+func test_steel_sparks_start_on_the_surface_that_was_hit() -> void:
+	# a steel block at cells x 8-9 (px 64-80): the face a rightward bullet hits is x = 64
+	var rows := _rows(20, 8)
+	for x in [8, 9]:
+		for y in [2, 3]:
+			_put(rows, x, y, "S")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	var sparks := _fx_events(s, "hit_steel")
+	T.eq(sparks.size(), 1, "one burst")
+	# origin on the face (x = 64), flying left, so the 32 px sheet is centred 16 px left of it
+	T.near(sparks[0].pos.x, 48.0, 0.01, "centred half a sheet in front of the face, not inside or behind the block")
+	T.near(sparks[0].pos.y, 24.0, 0.01, "at the height of the bullet")
+
+func test_steel_sparks_start_on_the_surface_from_every_direction() -> void:
+	# block at cells (10..11, 10..11) = px 80..96; bullets arrive from each side
+	var cases := [
+		[Vector2(40, 80), Cfg.Dir.RIGHT, Vector2(64, 88)],    # from the left: face x = 80, sheet centre 16 left of it
+		[Vector2(136, 80), Cfg.Dir.LEFT, Vector2(112, 88)],   # from the right: face x = 96
+		[Vector2(80, 40), Cfg.Dir.DOWN, Vector2(88, 64)],     # from above: face y = 80
+		[Vector2(80, 136), Cfg.Dir.UP, Vector2(88, 112)],     # from below: face y = 96
+	]
+	for cse in cases:
+		var rows := _rows(30, 30)
+		for x in [10, 11]:
+			for y in [10, 11]:
+				_put(rows, x, y, "S")
+		var s := _sim(rows)
+		_tank(s, 1, cse[0], cse[1])
+		_shoot_wall(s, 1)
+		var sparks := _fx_events(s, "hit_steel")
+		T.eq(sparks.size(), 1, "one burst, dir %d" % cse[1])
+		if sparks.size() == 1:
+			T.near(sparks[0].pos.x, cse[2].x, 0.01, "x, dir %d" % cse[1])
+			T.near(sparks[0].pos.y, cse[2].y, 0.01, "y, dir %d" % cse[1])
+
+func test_brick_hit_effects_centre_on_the_surface() -> void:
+	var rows := _rows(20, 8)
+	for y in [2, 3]:
+		_put(rows, 8, y, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	var hit := _fx_events(s, "hit_brick")
+	T.eq(hit.size(), 1, "one impact")
+	T.near(hit[0].pos.x, 64.0, 0.01, "on the face (x = 64), not a few px inside the brick")

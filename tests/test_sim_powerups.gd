@@ -161,6 +161,7 @@ func test_star_pickup_emits_its_effect() -> void:
 	var fx := _fx_events(s, "pickup_star")
 	T.eq(fx.size(), 1, "one effect")
 	T.eq(fx[0].pos, t.pos + Vector2(8, 8), "on the tank that took it")
+	T.eq(fx[0].tank, 1, "and says whose it is, so clients can keep it hidden in a bush")
 
 func test_star_pickup_at_max_stars_still_shows_its_effect() -> void:
 	var s := _sim(_rows(20, 8))
@@ -209,7 +210,9 @@ func test_heal_tick_emits_a_heart_effect_per_healed_point() -> void:
 	for i in int((Cfg.HEAL_DELAY_S + 3.0 * Cfg.HEAL_INTERVAL_S) * Cfg.TICK_HZ):
 		s.set_input(1, Cfg.NONE, false, i + 1)
 		s.step(1.0 / Cfg.TICK_HZ)
-		hearts += s.drain_events().filter(func(e): return e.k == "fx" and e.fx == "heal").size()
+		for e in s.drain_events().filter(func(e): return e.k == "fx" and e.fx == "heal"):
+			hearts += 1
+			T.eq(e.tank, 1, "the heart belongs to the healing tank")
 	T.eq(t.hp, 3, "healed to full")
 	T.eq(hearts, 2, "one heart effect for each of the two healed points, none at full health")
 

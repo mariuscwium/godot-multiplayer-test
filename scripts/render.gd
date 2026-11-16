@@ -100,6 +100,8 @@ func _draw_effects() -> void:
 		var frame := Effects.frame_at(f.kind, (now - f.born_ms) / 1000.0)
 		if frame < 0:
 			continue
+		if Effects.hidden_in_bush(f.kind, f.pos, f.tank, client.my_id, client.map):
+			continue
 		var d: Dictionary = Effects.DEFS[f.kind]
 		var half: float = d.size * 0.5
 		draw_set_transform(f.pos, f.rot + d.base_angle, Vector2.ONE)

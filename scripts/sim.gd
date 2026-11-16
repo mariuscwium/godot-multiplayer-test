@@ -82,8 +82,22 @@ func _emit(e: Dictionary) -> void:
 	_events.append(e)
 
 # Ask every client to play an effect animation (see Effects) centred at pos, rotated by rot (radians, 0 = up).
-func _fx(kind: String, pos: Vector2, rot: float = 0.0) -> void:
-	_emit({"k": "fx", "fx": kind, "pos": pos, "rot": rot})
+# `tank` (optional) names the tank an effect belongs to, so clients can keep it hidden while that tank is in a bush.
+func _fx(kind: String, pos: Vector2, rot: float = 0.0, tank: int = 0) -> void:
+	var e := {"k": "fx", "fx": kind, "pos": pos, "rot": rot}
+	if tank != 0:
+		e["tank"] = tank
+	_emit(e)
+
+# Where a bullet struck the surface of the cell it just entered (not a few px inside it).
+func _face_point(b: Bullet) -> Vector2:
+	var cx := floori(b.pos.x / Cfg.CELL)
+	var cy := floori(b.pos.y / Cfg.CELL)
+	match b.dir:
+		Cfg.Dir.RIGHT: return Vector2(cx * Cfg.CELL, b.pos.y)
+		Cfg.Dir.LEFT: return Vector2((cx + 1) * Cfg.CELL, b.pos.y)
+		Cfg.Dir.DOWN: return Vector2(b.pos.x, cy * Cfg.CELL)
+	return Vector2(b.pos.x, (cy + 1) * Cfg.CELL)
 
 func _respawn(t: Tank) -> void:
 	t.pos = _pick_spawn(t)
@@ -156,7 +170,7 @@ func step(dt: float) -> void:
 			if t.heal_t >= Cfg.HEAL_INTERVAL_S:
 				t.hp += 1
 				t.heal_t = 0.0
-				_fx("heal", t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5)
+				_fx("heal", t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5, 0.0, t.id)
 		else:
 			t.heal_t = 0.0
 		if not t.alive:
@@ -212,7 +226,8 @@ func _fire(t: Tank) -> void:
 	b.stars = t.stars
 	b.pos = t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.dir_vec(t.facing) * 8.0
 	bullets.append(b)
-	_fx("muzzle", b.pos, TankSprite.angle(t.facing))
+	var edge := t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.dir_vec(t.facing) * 8.0   # barrel tip
+	_fx("muzzle", Effects.anchored_pos("muzzle", edge, Cfg.dir_vec(t.facing)), TankSprite.angle(t.facing))
 
 func _step_bullets(dt: float) -> void:
 	if bullets.is_empty():
@@ -301,10 +316,12 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 	for c in pair:   # one impact effect per bullet, whichever material it struck (brick wins if both)
 		var tt := map.get_cell(c.x, c.y)
 		on_brick = on_brick or tt == Cfg.Tile.BRICK or tt == Cfg.Tile.BRICK_DAMAGED
+	var face := _face_point(b)
 	if on_brick:
-		_fx("hit_brick", b.pos)
-	else:
-		_fx("hit_steel", b.pos, TankSprite.angle((b.dir + 2) % 4))   # ricochet sparks fly back where the bullet came from
+		_fx("hit_brick", face)
+	else:   # ricochet sparks leave the surface and fly back where the bullet came from
+		var back := (b.dir + 2) % 4
+		_fx("hit_steel", Effects.anchored_pos("hit_steel", face, Cfg.dir_vec(back)), TankSprite.angle(back))
 	var broke := false
 	for c in pair:
 		var t := map.get_cell(c.x, c.y)
@@ -316,7 +333,7 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 				_cells.append([c.x, c.y, Cfg.Tile.EMPTY])
 				broke = true
 	if broke:
-		_fx("brick_dust", b.pos)   # one puff per bullet, however many cells it took out
+		_fx("brick_dust", _face_point(b))   # one puff per bullet, however many cells it took out
 
 func drop_powerup(pos: Vector2, type: int) -> void:
 	var snapped := (pos / Cfg.CELL).round() * Cfg.CELL
@@ -348,12 +365,12 @@ func _apply_powerup(t: Tank, type: int) -> void:
 	var centre := t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	match type:
 		Cfg.PowerType.STAR:
-			_fx("pickup_star", centre)
+			_fx("pickup_star", centre, 0.0, t.id)
 			if t.stars < Cfg.MAX_STARS:
 				t.stars += 1
 				t.hp += 1   # the new maximum comes with the extra point straight away
 		Cfg.PowerType.HELMET:
-			_fx("pickup_helmet", centre)
+			_fx("pickup_helmet", centre, 0.0, t.id)
 			t.shield_t = Cfg.HELMET_S
 		Cfg.PowerType.GRENADE:
 			_fx("blast", centre)
