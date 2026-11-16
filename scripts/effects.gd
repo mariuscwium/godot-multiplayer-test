@@ -7,6 +7,9 @@ class_name Effects extends RefCounted
 const DEFS := {
 	"tank_explosion": {"path": "res://assets/fx/explosion_small.png", "fw": 48, "fh": 48, "frames": 9, "cols": 9,
 		"fps": 15.0, "size": 48.0, "base_angle": 0.0},
+	"hit_tank": {"path": "res://assets/fx/hit_tank.png", "fw": 48, "fh": 48, "frames": 10, "cols": 10, "fps": 15.0, "size": 24.0, "base_angle": 0.0},
+	"hit_brick": {"path": "res://assets/fx/hit_brick.png", "fw": 48, "fh": 48, "frames": 7, "cols": 7, "fps": 15.0, "size": 24.0, "base_angle": 0.0},
+	"hit_steel": {"path": "res://assets/fx/hit_steel.png", "fw": 32, "fh": 32, "frames": 7, "cols": 7, "fps": 15.0, "size": 32.0, "base_angle": PI / 2.0},   # the sheet's particles fly left
 }
 
 static func has(kind: String) -> bool:

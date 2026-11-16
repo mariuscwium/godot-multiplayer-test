@@ -7,6 +7,9 @@ extends SceneTree
 const ROOT := "/mnt/c/Users/wium/Downloads/Super Pixel Effects Gigapack (Free Version) v3.2.0/Super Pixel Effects Gigapack (Free Version)/spritesheet/"
 const SHEETS := {
 	# kind -> Category/animation/variant
+	"hit_tank": "Impacts/symmetrical_impact_002/symmetrical_impact_002_small_blue",
+	"hit_brick": "Impacts/symmetrical_impact_001/symmetrical_impact_001_small_yellow",
+	"hit_steel": "Impacts/directional_impact_001/directional_impact_001_small_blue",
 }
 
 func _init() -> void:

@@ -236,6 +236,7 @@ func _resolve_bullets() -> void:
 				continue
 			if tank_rect(t).grow(1.0).has_point(b.pos):
 				consumed[b] = true
+				_fx("hit_tank", b.pos)
 				if t.shield_t <= 0.0:
 					if not hits.has(t.id):
 						hits[t.id] = []
@@ -291,6 +292,14 @@ func _bullet_pair(b: Bullet) -> Array:
 # Brick takes two hits (the first turns it into BRICK_DAMAGED); a 3-star shot breaks brick or steel outright.
 func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 	var heavy := b.stars >= Cfg.MAX_STARS
+	var on_brick := false
+	for c in pair:   # one impact effect per bullet, whichever material it struck (brick wins if both)
+		var tt := map.get_cell(c.x, c.y)
+		on_brick = on_brick or tt == Cfg.Tile.BRICK or tt == Cfg.Tile.BRICK_DAMAGED
+	if on_brick:
+		_fx("hit_brick", b.pos)
+	else:
+		_fx("hit_steel", b.pos, TankSprite.angle((b.dir + 2) % 4))   # ricochet sparks fly back where the bullet came from
 	for c in pair:
 		var t := map.get_cell(c.x, c.y)
 		if t == Cfg.Tile.BRICK and not heavy:

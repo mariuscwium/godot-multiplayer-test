@@ -454,3 +454,53 @@ func test_a_damaged_brick_still_stops_bullets() -> void:
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	_shoot_wall(s, 1)
 	T.eq(s.bullets.size(), 0, "the first bullet was stopped by the brick")
+
+func _fx_events(s: Sim, kind: String) -> Array:
+	return s.drain_events().filter(func(e): return e.k == "fx" and e.fx == kind)
+
+func test_hit_on_a_tank_emits_an_impact() -> void:
+	var s := _sim(_rows(20, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	b.hp = 3
+	_fire_once(s, 1)
+	_run(s, 1.0)
+	var hits := _fx_events(s, "hit_tank")
+	T.eq(hits.size(), 1, "one impact for one bullet")
+	T.ok(hits[0].pos.x > 60.0 and hits[0].pos.x < 82.0, "at the tank, got %s" % str(hits[0].pos))
+
+func test_a_shield_absorbed_hit_still_shows_an_impact() -> void:
+	var s := _sim(_rows(20, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	b.shield_t = 10.0
+	_fire_once(s, 1)
+	_run(s, 1.0)
+	T.eq(_fx_events(s, "hit_tank").size(), 1, "the bullet visibly hit the shield")
+
+func test_hit_on_steel_emits_sparks() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "S")
+	_put(rows, 8, 3, "S")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	var sparks := _fx_events(s, "hit_steel")
+	T.eq(sparks.size(), 1, "sparks")
+	T.near(sparks[0].rot, TankSprite.angle(Cfg.Dir.LEFT), 0.0001, "they fly back the way the bullet came (shot to the right, sparks to the left)")
+
+func test_hit_on_brick_emits_one_impact_per_bullet() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 8, 2, "B")
+	_put(rows, 8, 3, "B")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	T.eq(_fx_events(s, "hit_brick").size(), 1, "one impact even though two cells were damaged")
+
+func test_no_impact_effect_when_a_bullet_just_expires() -> void:
+	var s := _sim(_rows(120, 8))
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	_shoot_wall(s, 1)
+	var fx := s.drain_events().filter(func(e): return e.k == "fx" and e.fx.begins_with("hit_"))
+	T.eq(fx.size(), 0, "nothing was hit")
