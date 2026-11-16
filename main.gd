@@ -23,6 +23,8 @@ var announce_t := 0.0
 var finder: PacketPeerUDP      # client side while searching
 var find_deadline := 0
 var msg := ""          # connection problems shown to the user
+var bot := false       # --bot: AI-driven client for testing
+var bot_t := 0.0       # bot action timer (ready / fire)
 
 class Player extends Node2D:
 	var ack := 0                 # last input seq the server applied (replicated)
@@ -57,6 +59,8 @@ class Player extends Node2D:
 		modulate = Color.from_hsv(fmod(name.to_int() * 0.37, 1.0), 0.8, 1.0)
 		shown = position
 	func read_input() -> Vector2:
+		if get_parent().bot:
+			return get_parent().bot_input(self)
 		if get_viewport().gui_get_focus_owner():  # typing in chat
 			return Vector2.ZERO
 		return Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
@@ -175,9 +179,11 @@ func _check_start() -> void:
 		p.hp = 3
 		p.score = 0
 	set_phase.rpc("playing")
+	print("round start")
 	chat_show.rpc("Round start! First to %d kills wins." % WIN)
 
 func _end_round(winner) -> void:
+	print("round end: %s" % (winner.pname if winner else "no winner"))
 	if winner:
 		chat_show.rpc("%s wins!" % winner.pname)
 	for p in _players():
@@ -263,8 +269,41 @@ func _discovery(delta: float) -> void:
 			finder = null
 			msg = "No host found on LAN (try --join <ip>)"
 
+func _bot_target(me):
+	var best = null
+	for p in _players():
+		if p != me and (best == null or p.position.distance_to(me.position) < best.position.distance_to(me.position)):
+			best = p
+	return best
+
+func bot_input(me) -> Vector2:
+	var t = _bot_target(me)
+	if t == null or phase != "playing":
+		return Vector2.ZERO
+	var d: Vector2 = t.position - me.shown
+	var dir := d.normalized() if d.length() > 220 else -d.normalized() * 0.5
+	var strafe := d.normalized().orthogonal() * sin(Time.get_ticks_msec() / 600.0)
+	return (dir + strafe * 0.7).limit_length(1.0)
+
+func _bot_tick(delta: float) -> void:
+	var me = get_node_or_null(str(multiplayer.get_unique_id()))
+	if me == null:
+		return
+	bot_t += delta
+	if phase == "lobby":
+		if bot_t > 1.5 and not me.is_ready:
+			bot_t = 0.0
+			toggle_ready.rpc_id(1)
+	elif bot_t > 0.4:
+		var t = _bot_target(me)
+		if t:
+			bot_t = 0.0
+			fire.rpc_id(1, t.position - me.shown)
+
 func _process(delta: float) -> void:
 	_discovery(delta)
+	if bot:
+		_bot_tick(delta)
 	var players := _players()
 	var lines := []
 	for p in players:
@@ -362,6 +401,7 @@ func _ready() -> void:
 		p.position = Vector2(100 + randi() % 400, 100 + randi() % 300)
 		return p
 	var args := OS.get_cmdline_user_args()
+	bot = "--bot" in args
 	for a in args:
 		if a.begins_with("--name="):
 			my_name = a.substr(7)

@@ -8,6 +8,7 @@ godot --path . -- --host --name=Me      # host and play
 godot --path . -- --server              # dedicated server (no player); add --headless for no window
 godot --path . -- --join                # find a host on the LAN
 godot --path . -- --join <ip>           # join by IP (UDP 7777)
+godot --headless --path . -- --join <ip> --bot --name=Bot   # AI bot client: readies up, chases, shoots
 ```
 ## WebSocket / online (free path)
 ```
