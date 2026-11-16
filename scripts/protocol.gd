@@ -9,7 +9,7 @@ const POWERUP_INTS := 5
 static func encode_snapshot(sim: Sim) -> Array:
 	var tanks := PackedInt32Array()
 	for t in sim.tanks.values():
-		var flags := (1 if t.alive else 0) | (2 if t.shield_t > 0.0 else 0)
+		var flags := (1 if t.alive else 0) | (2 if t.shield_t > 0.0 else 0) | (clampi(t.hp, 0, 7) << 2)
 		tanks.append_array([t.id, roundi(t.pos.x * FP), roundi(t.pos.y * FP), t.facing, flags,
 			t.stars, t.kills, t.ack_seq, roundi(t.slide_t * 1000.0)])
 	var bullets := PackedInt32Array()
@@ -26,7 +26,7 @@ static func decode_snapshot(a: Array) -> Dictionary:
 	for i in range(0, t.size(), TANK_INTS):
 		out.tanks[t[i]] = {
 			"pos": Vector2(t[i + 1], t[i + 2]) / FP, "facing": t[i + 3],
-			"alive": (t[i + 4] & 1) != 0, "shield": (t[i + 4] & 2) != 0,
+			"alive": (t[i + 4] & 1) != 0, "shield": (t[i + 4] & 2) != 0, "hp": (t[i + 4] >> 2) & 7,
 			"stars": t[i + 5], "kills": t[i + 6], "ack": t[i + 7], "slide": t[i + 8] / 1000.0,
 		}
 	var b: PackedInt32Array = a[2]

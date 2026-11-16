@@ -16,6 +16,7 @@ const POWERUP_TTL := 10.0
 const REGROW_MIN := 30.0
 const REGROW_MAX := 60.0
 const MAX_STARS := 3
+const MAX_HP := 3              # shots to kill a tank; snapshots pack hp in 3 bits, so keep it <= 7
 const ICE_SLIDE_S := 0.25
 const GRENADE_CELLS := 6
 const INPUT_TIMEOUT_S := 0.5   # a client silent this long is treated as having released everything

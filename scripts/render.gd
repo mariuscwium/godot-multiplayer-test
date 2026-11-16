@@ -16,6 +16,9 @@ const COL_ICE_LINE := Color("8cc4e0")
 
 var client: Client
 
+static func hp_color(hp: int) -> Color:
+	return Color("3ddc4a") if hp >= 3 else (Color("f2c21b") if hp == 2 else Color("e5392b"))
+
 static func hue_for(id: int) -> float:
 	return fmod(absf(float(id)) * 0.61803398875, 1.0)
 
@@ -114,6 +117,8 @@ func _draw_tank(id: int, pos: Vector2, tk: Dictionary, t: float, mine := false) 
 	draw_rect(Rect2(c - Vector2(3, 3), Vector2(6, 6)), col.lightened(0.25))
 	for i in tk.stars:
 		draw_rect(Rect2(pos + Vector2(5 + i * 3, 7), Vector2(2, 2)), Color.YELLOW)
+	for i in Cfg.MAX_HP:   # health bar under the tank: one segment per hit it can take
+		draw_rect(Rect2(pos + Vector2(i * 6, 18), Vector2(4, 2)), hp_color(tk.hp) if i < tk.hp else Color(0.25, 0.25, 0.25))
 	if tk.shield and int(t * 10.0) % 2 == 0:
 		draw_rect(Rect2(pos - Vector2(1, 1), Vector2(18, 18)), Color(1, 1, 1, 0.9), false, 1.0)
 	var nm: String = client.roster.get(id, "")

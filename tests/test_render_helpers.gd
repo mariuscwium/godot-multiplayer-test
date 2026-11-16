@@ -14,3 +14,7 @@ func test_hue_distinct_for_first_20_ids() -> void:
 			var d := absf(Render.hue_for(a) - Render.hue_for(b))
 			d = minf(d, 1.0 - d)
 			T.ok(d > 0.02, "ids %d and %d too similar (%f)" % [a, b, d])
+
+func test_hp_colors_differ_by_health() -> void:
+	T.ok(Render.hp_color(3) != Render.hp_color(2), "3 vs 2")
+	T.ok(Render.hp_color(2) != Render.hp_color(1), "2 vs 1")

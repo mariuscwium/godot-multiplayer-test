@@ -23,6 +23,7 @@ func _tank(sim: Sim, id: int, pos: Vector2, facing: int) -> Sim.Tank:
 	t.pos = pos
 	t.facing = facing
 	t.shield_t = 0.0
+	t.hp = 1   # these tests are about other things: one hit kills
 	return t
 
 func _rects_overlap(a: Sim.Tank, b: Sim.Tank) -> bool:
@@ -112,6 +113,7 @@ func test_shield_absorbs_bullet() -> void:
 	s.set_input(1, Cfg.NONE, false, 2)
 	_run(s, 1.0)
 	T.ok(b.alive, "shielded tank survives")
+	T.eq(b.hp, 1, "shield absorbs the hit without damage")
 	T.eq(a.kills, 0, "no credit")
 	T.eq(s.bullets.size(), 0, "bullet consumed")
 
@@ -263,3 +265,41 @@ func test_input_times_out() -> void:
 	_run(s, 0.3)
 	T.eq(t.input_dir, Cfg.NONE, "released after the timeout")
 	T.eq(t.input_fire, false, "fire released too")
+
+func test_new_tank_has_full_hp() -> void:
+	var s := _sim(_rows(20, 8))
+	s.add_tank(1, "a")
+	T.eq(s.tanks[1].hp, Cfg.MAX_HP, "spawns with full hp")
+	T.eq(Cfg.MAX_HP, 3, "three shots for a kill")
+
+func test_three_hits_to_kill() -> void:
+	var s := _sim(_rows(20, 8))
+	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	b.hp = Cfg.MAX_HP
+	var seq := 0
+	var hold := func(secs: float) -> void:   # clients re-send input every tick; silence times out
+		for i in int(secs * Cfg.TICK_HZ):
+			seq += 1
+			s.set_input(1, Cfg.NONE, true, seq)
+			s.step(1.0 / Cfg.TICK_HZ)
+	hold.call(0.4)
+	T.eq(b.hp, 2, "first hit")
+	T.ok(b.alive and a.kills == 0, "still alive, no credit yet")
+	hold.call(1.0)
+	T.ok(not b.alive, "dead after the third hit")
+	T.eq(a.kills, 1, "credited exactly once")
+	T.eq(s.drain_events().filter(func(e): return e.k == "kill").size(), 1, "one kill event")
+
+func test_respawn_restores_full_hp() -> void:
+	var rows := _rows(20, 8)
+	_put(rows, 10, 5, "P")
+	var s := _sim(rows)
+	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
+	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
+	_fire_once(s, 1)
+	_run(s, 0.5)
+	T.ok(not b.alive, "dead")
+	_run(s, 2.0)
+	T.ok(b.alive, "respawned")
+	T.eq(b.hp, Cfg.MAX_HP, "full hp again")

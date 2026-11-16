@@ -10,6 +10,7 @@ class Tank extends RefCounted:
 	var respawn_t := 0.0
 	var shield_t := 0.0
 	var stars := 0
+	var hp := Cfg.MAX_HP
 	var kills := 0
 	var input_dir := Cfg.NONE
 	var input_fire := false
@@ -82,6 +83,7 @@ func _respawn(t: Tank) -> void:
 	t.alive = true
 	t.shield_t = Cfg.SPAWN_SHIELD_S
 	t.stars = 0
+	t.hp = Cfg.MAX_HP
 	t.input_dir = Cfg.NONE
 	t.input_fire = false
 	t.slide_t = 0.0
@@ -210,7 +212,7 @@ func _step_bullets(dt: float) -> void:
 
 func _resolve_bullets() -> void:
 	var consumed := {}
-	var kills := {}   # victim id -> first killer id
+	var hits := {}    # victim id -> shooter ids, one per bullet that landed
 	# 1. tank hits (before bullet-vs-bullet so point-blank trades both land)
 	for b in bullets:
 		for t in tanks.values():
@@ -218,8 +220,10 @@ func _resolve_bullets() -> void:
 				continue
 			if tank_rect(t).grow(1.0).has_point(b.pos):
 				consumed[b] = true
-				if t.shield_t <= 0.0 and not kills.has(t.id):
-					kills[t.id] = b.owner
+				if t.shield_t <= 0.0:
+					if not hits.has(t.id):
+						hits[t.id] = []
+					hits[t.id].append(b.owner)
 				break
 	# 2. terrain: a bullet is as wide as a tank, so it tests the two cells straddling its centreline
 	for b in bullets:
@@ -247,10 +251,14 @@ func _resolve_bullets() -> void:
 				consumed[c] = true
 				break
 	bullets = bullets.filter(func(b): return not consumed.has(b))
-	for vid in kills:
+	for vid in hits:
 		var v: Tank = tanks.get(vid)
-		if v != null and v.alive:
-			_kill(v, kills[vid])
+		for shooter in hits[vid]:
+			if v == null or not v.alive:
+				break
+			v.hp -= 1
+			if v.hp <= 0:
+				_kill(v, shooter)
 
 # The two cells across the bullet's path, centred on its centreline.
 func _bullet_pair(b: Bullet) -> Array:

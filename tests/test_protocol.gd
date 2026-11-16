@@ -13,6 +13,7 @@ func test_snapshot_roundtrip() -> void:
 	t.shield_t = 2.0
 	t.stars = 2
 	t.kills = 5
+	t.hp = 2
 	t.ack_seq = 123
 	t.slide_t = 0.2
 	var b := Sim.Bullet.new()
@@ -36,6 +37,7 @@ func test_snapshot_roundtrip() -> void:
 	T.eq(dt.shield, true, "shield")
 	T.eq(dt.stars, 2, "stars")
 	T.eq(dt.kills, 5, "kills")
+	T.eq(dt.hp, 2, "hp")
 	T.eq(dt.ack, 123, "ack")
 	T.near(dt.slide, 0.2, 0.002, "slide")
 	T.eq(d.bullets.size(), 1, "one bullet")

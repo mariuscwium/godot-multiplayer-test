@@ -22,6 +22,7 @@ func _tank(sim: Sim, id: int, pos: Vector2, facing: int) -> Sim.Tank:
 	t.pos = pos
 	t.facing = facing
 	t.shield_t = 0.0
+	t.hp = 1   # these tests are about other things: one hit kills
 	return t
 
 func test_kill_drops_powerup_at_victim() -> void:
