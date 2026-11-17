@@ -2,9 +2,10 @@
 # Export the single-threaded Web build to build/web/ (no COOP/COEP headers needed, so GitHub Pages works).
 # Creates export_presets.cfg if missing (it is gitignored). Needs the Web export templates:
 #   python3 -I tools/install_web_templates.py
-G=${GODOT:-$HOME/godot-bin/Godot_v4.7.2-stable_linux.x86_64}
+G=${GODOT:-$(command -v godot || echo "$HOME/godot-bin/Godot_v4.7.2-stable_linux.x86_64")}
 cd "$(dirname "$0")/.." || exit 1
 TPL=$HOME/.local/share/godot/export_templates/4.7.2.stable/web_nothreads_release.zip
+[ -f "$TPL" ] || TPL="$HOME/Library/Application Support/Godot/export_templates/4.7.2.stable/web_nothreads_release.zip"  # macOS
 if [ ! -f "$TPL" ]; then
 	echo "Missing Web export templates ($TPL). Install them with: python3 -I tools/install_web_templates.py" >&2
 	exit 1
