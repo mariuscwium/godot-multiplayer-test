@@ -1,18 +1,19 @@
 class_name TankMotion extends RefCounted
 # Pure movement step shared by the server Sim and client-side prediction.
-# pos is the tank's top-left in px. Directions are Cfg.Dir or Cfg.NONE.
-
-static func _horizontal(d: int) -> bool:
-	return d == Cfg.Dir.LEFT or d == Cfg.Dir.RIGHT
+# Differential drive: each track runs forward, back or idle (Cfg.drive). Both forward drives straight ahead,
+# one forward and one idle circles about the idle track, opposite tracks spin on the spot.
+# pos is the tank's top-left in px; heading is radians (0 = up, clockwise), see Cfg.heading_vec.
 
 static func _on_ice(map: GameMap, pos: Vector2) -> bool:
 	var c := pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	return map.get_cell(floori(c.x / Cfg.CELL), floori(c.y / Cfg.CELL)) == Cfg.Tile.ICE
 
+# Terrain hitbox: the tank square shrunk a little, and it does not rotate with the sprite.
 static func _free(map: GameMap, p: Vector2) -> bool:
-	return not map.tank_blocked(Rect2(p, Vector2(Cfg.TANK_PX, Cfg.TANK_PX)))
+	var i := Cfg.HIT_INSET
+	return not map.tank_blocked(Rect2(p + Vector2(i, i), Vector2(Cfg.TANK_PX - 2.0 * i, Cfg.TANK_PX - 2.0 * i)))
 
-# Move along dir by up to dist px, stopping flush against blockers.
+# Move along an axis dir by up to dist px, stopping flush against blockers.
 static func _advance(map: GameMap, pos: Vector2, dir: int, dist: float) -> Vector2:
 	var v := Cfg.dir_vec(dir)
 	var left := dist
@@ -35,10 +36,19 @@ static func _advance(map: GameMap, pos: Vector2, dir: int, dist: float) -> Vecto
 		return pos + v * lo
 	return pos
 
-# blockers: rects of other tanks. A move that newly overlaps one is refused; an existing overlap
-# (e.g. a tank spawned on top of another) never traps you.
-static func step(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_t: float, dt: float, blockers: Array = []) -> Dictionary:
-	var r := _step_map(map, pos, facing, input_dir, slide_t, dt)
+# Move by d, x then y, so a tank pushing diagonally into a wall slides along it.
+static func _slide(map: GameMap, pos: Vector2, d: Vector2) -> Vector2:
+	if d.x != 0.0:
+		pos = _advance(map, pos, Cfg.Dir.RIGHT if d.x > 0.0 else Cfg.Dir.LEFT, absf(d.x))
+	if d.y != 0.0:
+		pos = _advance(map, pos, Cfg.Dir.DOWN if d.y > 0.0 else Cfg.Dir.UP, absf(d.y))
+	return pos
+
+# blockers: rects of other tanks. A move that newly overlaps one is refused (the tank can still turn); an
+# existing overlap (e.g. a tank spawned on top of another) never traps you.
+# Returns {pos, facing (the new heading), slide_t}. slide_t is ice momentum: signed, + forward, - backward.
+static func step(map: GameMap, pos: Vector2, heading: float, drive: int, slide_t: float, dt: float, blockers: Array = []) -> Dictionary:
+	var r := _step_map(map, pos, heading, drive, slide_t, dt)
 	if blockers.is_empty():
 		return r
 	var old := Rect2(pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX))
@@ -49,30 +59,21 @@ static func step(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_
 			break
 	return r
 
-static func _step_map(map: GameMap, pos: Vector2, facing: int, input_dir: int, slide_t: float, dt: float) -> Dictionary:
-	# Ice: momentum (slide_t) carries the tank on in its old direction with fading speed, and a new
-	# direction (turn or brake) only takes over once the momentum has faded below ICE_TURN_FRAC.
-	var sliding := slide_t > 0.0
-	var steering_locked := sliding and input_dir != Cfg.NONE and input_dir != facing \
-		and slide_t > Cfg.ICE_SLIDE_S * Cfg.ICE_TURN_FRAC
-	if input_dir == Cfg.NONE or steering_locked:
-		if sliding:
-			var frac := clampf(slide_t / Cfg.ICE_SLIDE_S, 0.0, 1.0)
-			var moved := _advance(map, pos, facing, Cfg.TANK_SPEED * frac * dt)
-			slide_t = 0.0 if moved.distance_to(pos) < 0.001 else maxf(0.0, slide_t - dt)   # a wall stops you dead
-			pos = moved
-		return {"pos": pos, "facing": facing, "slide_t": slide_t}
-	if _horizontal(input_dir) != _horizontal(facing):
-		# turning onto the other axis: snap the cross coordinate to the 8px grid
-		var snapped := pos
-		if _horizontal(input_dir):
-			snapped.y = roundf(pos.y / Cfg.CELL) * Cfg.CELL
-		else:
-			snapped.x = roundf(pos.x / Cfg.CELL) * Cfg.CELL
-		if _free(map, snapped):
-			pos = snapped
-	var driven := _advance(map, pos, input_dir, Cfg.TANK_SPEED * dt)
-	var blocked := driven.distance_to(pos) < 0.001
-	pos = driven
-	slide_t = Cfg.ICE_SLIDE_S if _on_ice(map, pos) and not blocked else 0.0
-	return {"pos": pos, "facing": input_dir, "slide_t": slide_t}
+static func _step_map(map: GameMap, pos: Vector2, heading: float, drive: int, slide_t: float, dt: float) -> Dictionary:
+	var l := Cfg.drive_left(drive)
+	var r := Cfg.drive_right(drive)
+	var v := (l + r) * 0.5 * Cfg.TANK_SPEED               # px/s along the heading
+	var w := (l - r) * Cfg.TANK_SPEED / Cfg.TRACK_GAP     # rad/s, clockwise when the left track is faster
+	var coasting := l == 0 and r == 0 and slide_t != 0.0
+	if l == 0 and r == 0 and not coasting:
+		return {"pos": pos, "facing": heading, "slide_t": 0.0}
+	if coasting:   # ice: carry on straight with fading speed
+		v = signf(slide_t) * Cfg.TANK_SPEED * clampf(absf(slide_t) / Cfg.ICE_SLIDE_S, 0.0, 1.0)
+	var mid := heading + w * dt * 0.5
+	var np := _slide(map, pos, Cfg.heading_vec(mid) * v * dt)
+	var moved := np.distance_to(pos) > 0.001
+	if coasting:
+		slide_t = signf(slide_t) * maxf(0.0, absf(slide_t) - dt) if moved else 0.0   # a wall stops you dead
+	else:
+		slide_t = signf(v) * Cfg.ICE_SLIDE_S if v != 0.0 and moved and _on_ice(map, np) else 0.0
+	return {"pos": np, "facing": wrapf(heading + w * dt, 0.0, TAU), "slide_t": slide_t}

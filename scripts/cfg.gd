@@ -22,15 +22,33 @@ const HEAL_INTERVAL_S := 5.0    # then it regains 1 hp every this many seconds
 const MAX_STARS := 3
 const MAX_HP := 3              # base shots to kill a tank; each star adds one more (snapshots pack hp in 3 bits: max 7)
 const ICE_SLIDE_S := 1.2        # momentum on ice: seconds to coast to a stop, speed fading linearly
-const ICE_TURN_FRAC := 0.6      # while sliding, a new direction only takes over once momentum is below this fraction
+const TRACK_GAP := 16.0         # px between the two tracks: the smaller it is, the tighter one-track turns are
+const HIT_INSET := 1.0          # terrain hitbox is the tank square shrunk by this per side, so free steering still fits 2-cell gaps
 const GRENADE_CELLS := 6
 const INPUT_TIMEOUT_S := 0.5   # a client silent this long is treated as having released everything
 const PORT := 7777
-const NONE := -1
+const STOP := 4                 # drive code with both tracks idle (see drive())
 
 enum Tile { EMPTY, BRICK, STEEL, BUSH, WATER, ICE, BRICK_DAMAGED }   # BRICK_DAMAGED only appears in play: a brick hit once
 enum Dir { UP, RIGHT, DOWN, LEFT }
 enum PowerType { STAR, HELMET, GRENADE }
+
+# A drive code packs the two tracks, each -1 (back), 0 (idle) or +1 (forward): (left + 1) * 3 + (right + 1).
+static func drive(left: int, right: int) -> int:
+	return (clampi(left, -1, 1) + 1) * 3 + clampi(right, -1, 1) + 1
+
+static func drive_left(code: int) -> int:
+	return code / 3 - 1
+
+static func drive_right(code: int) -> int:
+	return code % 3 - 1
+
+# Headings are radians: 0 faces up and they grow clockwise, so right = PI/2.
+static func heading(d: int) -> float:
+	return d * PI / 2.0
+
+static func heading_vec(h: float) -> Vector2:
+	return Vector2(sin(h), -cos(h))
 
 static func max_hp_for(stars: int) -> int:
 	return MAX_HP + clampi(stars, 0, MAX_STARS)

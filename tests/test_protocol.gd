@@ -9,7 +9,7 @@ func test_snapshot_roundtrip() -> void:
 	s.add_tank(7, "a")
 	var t: Sim.Tank = s.tanks[7]
 	t.pos = Vector2(12.3125, 45.5)
-	t.facing = Cfg.Dir.LEFT
+	t.facing = 4.0
 	t.shield_t = 2.0
 	t.stars = 2
 	t.kills = 5
@@ -19,7 +19,7 @@ func test_snapshot_roundtrip() -> void:
 	var b := Sim.Bullet.new()
 	b.id = 9
 	b.pos = Vector2(100.25, 50.0)
-	b.dir = Cfg.Dir.DOWN
+	b.heading = 2.5
 	b.owner = 7
 	b.stars = 1
 	s.bullets.append(b)
@@ -32,7 +32,7 @@ func test_snapshot_roundtrip() -> void:
 	var dt: Dictionary = d.tanks[7]
 	T.near(dt.pos.x, 12.3125, 1.0 / 16, "x")
 	T.near(dt.pos.y, 45.5, 1.0 / 16, "y")
-	T.eq(dt.facing, Cfg.Dir.LEFT, "facing")
+	T.near(dt.facing, 4.0, 0.001, "facing (milliradian precision)")
 	T.eq(dt.alive, true, "alive")
 	T.eq(dt.shield, true, "shield")
 	T.eq(dt.stars, 2, "stars")
@@ -42,7 +42,7 @@ func test_snapshot_roundtrip() -> void:
 	T.near(dt.slide, 0.2, 0.002, "slide")
 	T.eq(d.bullets.size(), 1, "one bullet")
 	T.eq(d.bullets[0].owner, 7, "bullet owner")
-	T.eq(d.bullets[0].dir, Cfg.Dir.DOWN, "bullet dir")
+	T.near(d.bullets[0].heading, 2.5, 0.001, "bullet heading")
 	T.eq(d.bullets[0].fast, true, "bullet fast")
 	T.near(d.bullets[0].pos.x, 100.25, 1.0 / 16, "bullet x")
 	T.eq(d.powerups.size(), 1, "one powerup")

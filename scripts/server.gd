@@ -19,12 +19,12 @@ static func take_input(q: Array) -> Dictionary:
 		q.pop_front()   # client got ahead (stalled tab, burst): skip to the recent ones
 	return q.pop_front() if not q.is_empty() else {}
 
-static func sanitize_input(seq: Variant, dir: Variant, fire: Variant, last_seq: int) -> Dictionary:
-	if typeof(seq) != TYPE_INT or typeof(dir) != TYPE_INT or typeof(fire) != TYPE_BOOL:
+static func sanitize_input(seq: Variant, drive: Variant, fire: Variant, last_seq: int) -> Dictionary:
+	if typeof(seq) != TYPE_INT or typeof(drive) != TYPE_INT or typeof(fire) != TYPE_BOOL:
 		return {}
-	if dir < -1 or dir > 3 or seq <= last_seq or seq > last_seq + MAX_SEQ_JUMP:
+	if drive < 0 or drive > 8 or seq <= last_seq or seq > last_seq + MAX_SEQ_JUMP:
 		return {}
-	return {"seq": seq, "dir": dir, "fire": fire}
+	return {"seq": seq, "drive": drive, "fire": fire}
 
 func start(port: int, ws: bool) -> Error:
 	sim = Sim.new(GameMap.from_text(FileAccess.get_file_as_string("res://maps/arena.txt")), randi())
@@ -66,17 +66,17 @@ func on_resync(id: int) -> void:
 		print("resync: %s" % sim.tanks[id].name)
 		net.c_welcome.rpc_id(id, build_welcome(id))
 
-func on_input(id: int, seq: Variant, dir: Variant, fire: Variant) -> void:
+func on_input(id: int, seq: Variant, drive: Variant, fire: Variant) -> void:
 	if id == 0:
 		id = 1
 	if not sim.tanks.has(id):
 		return
-	var r := sanitize_input(seq, dir, fire, _last_seq.get(id, 0))
+	var r := sanitize_input(seq, drive, fire, _last_seq.get(id, 0))
 	if r.is_empty():
 		return
 	_last_seq[id] = r.seq
 	if id == 1 and local_client:
-		sim.set_input(id, r.dir, r.fire, r.seq)   # same process: no network jitter to smooth
+		sim.set_input(id, r.drive, r.fire, r.seq)   # same process: no network jitter to smooth
 		return
 	var q: Array = _queue.get(id, [])
 	q.append(r)
@@ -102,10 +102,10 @@ func _physics_process(_delta: float) -> void:
 		if r.is_empty():
 			var t: Sim.Tank = sim.tanks.get(id)   # nothing arrived this tick: hold still, ack unchanged
 			if t:
-				t.input_dir = Cfg.NONE
+				t.input_drive = Cfg.STOP
 				t.input_fire = false
 		else:
-			sim.set_input(id, r.dir, r.fire, r.seq)
+			sim.set_input(id, r.drive, r.fire, r.seq)
 	sim.step(1.0 / Cfg.TICK_HZ)
 	var events := sim.drain_events() + _out
 	_out = []

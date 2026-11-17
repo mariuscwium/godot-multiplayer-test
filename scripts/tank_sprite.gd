@@ -9,6 +9,3 @@ static func tier(stars: int) -> int:
 
 static func src_rect(stars: int, frame: int) -> Rect2:
 	return Rect2(tier(stars) * CELL_PX, posmod(frame, 2) * CELL_PX, CELL_PX, CELL_PX)
-
-static func angle(facing: int) -> float:
-	return facing * PI / 2.0

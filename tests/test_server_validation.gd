@@ -1,15 +1,15 @@
 extends RefCounted
 
 func test_accepts_valid() -> void:
-	var r := Server.sanitize_input(5, Cfg.Dir.LEFT, true, 4)
-	T.eq(r, {"seq": 5, "dir": Cfg.Dir.LEFT, "fire": true}, "valid input passes through")
+	var r := Server.sanitize_input(5, Cfg.drive(1, -1), true, 4)
+	T.eq(r, {"seq": 5, "drive": Cfg.drive(1, -1), "fire": true}, "valid input passes through")
 
-func test_accepts_none_dir() -> void:
-	T.eq(Server.sanitize_input(1, -1, false, 0).dir, -1, "NONE is valid")
+func test_accepts_stop() -> void:
+	T.eq(Server.sanitize_input(1, Cfg.STOP, false, 0).drive, Cfg.STOP, "STOP is valid")
 
-func test_rejects_bad_dir() -> void:
-	T.eq(Server.sanitize_input(5, 7, false, 4), {}, "dir 7")
-	T.eq(Server.sanitize_input(5, -2, false, 4), {}, "dir -2")
+func test_rejects_bad_drive() -> void:
+	T.eq(Server.sanitize_input(5, 9, false, 4), {}, "drive 9")
+	T.eq(Server.sanitize_input(5, -1, false, 4), {}, "drive -1")
 
 func test_rejects_stale_seq() -> void:
 	T.eq(Server.sanitize_input(4, 0, false, 4), {}, "equal seq")

@@ -21,7 +21,7 @@ func _tank(sim: Sim, id: int, pos: Vector2, facing: int) -> Sim.Tank:
 	sim.add_tank(id, "t%d" % id)
 	var t: Sim.Tank = sim.tanks[id]
 	t.pos = pos
-	t.facing = facing
+	t.facing = Cfg.heading(facing)
 	t.shield_t = 0.0
 	t.hp = 1   # these tests are about other things: one hit kills
 	return t
@@ -69,14 +69,14 @@ func test_tanks_block_each_other() -> void:
 	var s := _sim(_rows(20, 8))
 	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	_tank(s, 2, Vector2(24, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.Dir.RIGHT, false, 1)
+	s.set_input(1, Cfg.drive(1, 1), false, 1)
 	_run(s, 1.0)
 	T.ok(a.pos.x <= 8.01, "stopped by the other tank, x=%f" % a.pos.x)
 
 func test_fire_creates_one_bullet_limit() -> void:
 	var s := _sim(_rows(40, 8))
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
 	s.step(1.0 / 30)
 	T.eq(s.bullets.size(), 1, "second shot refused while one is in flight")
@@ -86,7 +86,7 @@ func test_two_stars_allow_two_bullets() -> void:
 	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	t.stars = 2
 	for i in int(0.6 * Cfg.TICK_HZ):   # held fire, re-sent every tick; the second shot waits out the cooldown
-		s.set_input(1, Cfg.NONE, true, i + 1)
+		s.set_input(1, Cfg.STOP, true, i + 1)
 		s.step(1.0 / 30)
 	T.eq(s.bullets.size(), 2, "two in flight with 2 stars")
 
@@ -94,7 +94,7 @@ func test_bullet_kills_tank_and_credits_killer() -> void:
 	var s := _sim(_rows(20, 8))
 	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	_run(s, 1.0)
 	T.ok(not b.alive, "victim dead")
 	T.eq(a.kills, 1, "killer credited")
@@ -109,9 +109,9 @@ func test_shield_absorbs_bullet() -> void:
 	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
 	b.shield_t = 5.0
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 2)
+	s.set_input(1, Cfg.STOP, false, 2)
 	_run(s, 1.0)
 	T.ok(b.alive, "shielded tank survives")
 	T.eq(b.hp, 1, "shield absorbs the hit without damage")
@@ -122,8 +122,8 @@ func test_mutual_kill_same_tick() -> void:
 	var s := _sim(_rows(20, 8))
 	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(16, 16), Cfg.Dir.LEFT)
-	s.set_input(1, Cfg.NONE, true, 1)
-	s.set_input(2, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
+	s.set_input(2, Cfg.STOP, true, 1)
 	_run(s, 0.2)
 	T.ok(not a.alive and not b.alive, "both dead")
 	T.eq(a.kills, 1, "a credited")
@@ -151,16 +151,16 @@ func test_steel_needs_three_stars() -> void:
 	_put(rows, 8, 3, "S")
 	var s := _sim(rows)
 	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 2)
+	s.set_input(1, Cfg.STOP, false, 2)
 	_run(s, 1.0)
 	T.eq(s.map.get_cell(8, 2), Cfg.Tile.STEEL, "plain shot bounces off steel")
 	T.eq(s.bullets.size(), 0, "bullet consumed")
 	t.stars = 3
-	s.set_input(1, Cfg.NONE, true, 3)
+	s.set_input(1, Cfg.STOP, true, 3)
 	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 4)
+	s.set_input(1, Cfg.STOP, false, 4)
 	_run(s, 1.0)
 	T.eq(s.map.get_cell(8, 2), Cfg.Tile.EMPTY, "3-star shot breaks steel")
 	T.eq(s.map.get_cell(8, 3), Cfg.Tile.EMPTY, "both cells")
@@ -169,11 +169,11 @@ func test_bullets_cancel() -> void:
 	var s := _sim(_rows(30, 8))
 	var a := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(160, 16), Cfg.Dir.LEFT)
-	s.set_input(1, Cfg.NONE, true, 1)
-	s.set_input(2, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
+	s.set_input(2, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 2)
-	s.set_input(2, Cfg.NONE, false, 2)
+	s.set_input(1, Cfg.STOP, false, 2)
+	s.set_input(2, Cfg.STOP, false, 2)
 	_run(s, 1.5)
 	T.eq(s.bullets.size(), 0, "both bullets gone")
 	T.ok(a.alive and b.alive, "nobody hit")
@@ -184,9 +184,9 @@ func test_respawn_after_2s_with_shield() -> void:
 	var s := _sim(rows)
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 2)
+	s.set_input(1, Cfg.STOP, false, 2)
 	_run(s, 0.5)
 	T.ok(not b.alive, "dead after the hit")
 	_run(s, 1.0)
@@ -200,18 +200,18 @@ func test_remove_tank_keeps_its_bullets_flying() -> void:
 	var s := _sim(_rows(20, 8))
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
 	s.remove_tank(1)
 	_run(s, 1.0)
 	T.ok(not b.alive, "bullet from a departed player still resolves")
 	T.ok(not s.tanks.has(1), "no ghost tank")
 
-func test_set_input_rejects_bad_dir() -> void:
+func test_set_input_rejects_bad_drive() -> void:
 	var s := _sim(_rows(20, 8))
 	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, 7, false, 5)
-	T.eq(t.input_dir, Cfg.NONE, "dir 7 becomes NONE")
+	s.set_input(1, 9, false, 5)
+	T.eq(t.input_drive, Cfg.STOP, "drive 9 becomes STOP")
 	T.eq(t.ack_seq, 5, "seq still acked")
 	s.set_input(99, 1, false, 1)
 	T.ok(not s.tanks.has(99), "unknown id ignored")
@@ -221,9 +221,9 @@ func _shoot_wall(s: Sim, id: int) -> void:   # one shot at whatever is ahead, th
 	_run(s, 1.0)
 
 func _fire_once(s: Sim, id: int) -> void:
-	s.set_input(id, Cfg.NONE, true, 100)
+	s.set_input(id, Cfg.STOP, true, 100)
 	s.step(1.0 / 30)
-	s.set_input(id, Cfg.NONE, false, 101)
+	s.set_input(id, Cfg.STOP, false, 101)
 
 func test_brick_shot_from_half_tile_offset_hits_cells_in_front() -> void:
 	var rows := _rows(20, 10)
@@ -263,11 +263,11 @@ func test_map_rev_counts_terrain_events() -> void:
 func test_input_times_out() -> void:
 	var s := _sim(_rows(40, 8))
 	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.Dir.RIGHT, true, 1)
+	s.set_input(1, Cfg.drive(1, 1), true, 1)
 	_run(s, 0.4)
-	T.eq(t.input_dir, Cfg.Dir.RIGHT, "still held at 0.4s")
+	T.eq(t.input_drive, Cfg.drive(1, 1), "still held at 0.4s")
 	_run(s, 0.3)
-	T.eq(t.input_dir, Cfg.NONE, "released after the timeout")
+	T.eq(t.input_drive, Cfg.STOP, "released after the timeout")
 	T.eq(t.input_fire, false, "fire released too")
 
 func test_new_tank_has_full_hp() -> void:
@@ -285,7 +285,7 @@ func test_three_hits_to_kill() -> void:
 	var hold := func(secs: float) -> void:   # clients re-send input every tick; silence times out
 		for i in int(secs * Cfg.TICK_HZ):
 			seq += 1
-			s.set_input(1, Cfg.NONE, true, seq)
+			s.set_input(1, Cfg.STOP, true, seq)
 			s.step(1.0 / Cfg.TICK_HZ)
 	hold.call(0.4)
 	T.eq(b.hp, 2, "first hit")
@@ -332,7 +332,7 @@ func test_can_fire_again_once_the_bullet_expired() -> void:
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var seen := {}
 	for i in 3 * Cfg.TICK_HZ:
-		s.set_input(1, Cfg.NONE, true, i + 1)   # held fire, re-sent every tick like a real client
+		s.set_input(1, Cfg.STOP, true, i + 1)   # held fire, re-sent every tick like a real client
 		s.step(1.0 / Cfg.TICK_HZ)
 		for b in s.bullets:
 			seen[b.id] = true
@@ -487,7 +487,7 @@ func test_hit_on_steel_emits_sparks() -> void:
 	_shoot_wall(s, 1)
 	var sparks := _fx_events(s, "hit_steel")
 	T.eq(sparks.size(), 1, "sparks")
-	T.near(sparks[0].rot, TankSprite.angle(Cfg.Dir.LEFT), 0.0001, "they fly back the way the bullet came (shot to the right, sparks to the left)")
+	T.near(sparks[0].rot, Cfg.heading(Cfg.Dir.LEFT), 0.0001, "they fly back the way the bullet came (shot to the right, sparks to the left)")
 
 func test_hit_on_brick_emits_one_impact_per_bullet() -> void:
 	var rows := _rows(20, 8)
@@ -529,12 +529,12 @@ func test_firing_emits_one_muzzle_flash_per_bullet_rotated_to_the_facing() -> vo
 		var s := _sim(_rows(30, 30))
 		var t := _tank(s, 1, Vector2(100, 100), facing)
 		s.drain_events()
-		s.set_input(1, Cfg.NONE, true, 1)
+		s.set_input(1, Cfg.STOP, true, 1)
 		s.step(1.0 / 30)
 		var fx := _fx_events(s, "muzzle")
 		T.eq(fx.size(), 1, "one flash, facing %d" % facing)
 		if fx.size() == 1:
-			T.near(fx[0].rot, TankSprite.angle(facing), 0.0001, "rotated to the barrel, facing %d" % facing)
+			T.near(fx[0].rot, Cfg.heading(facing), 0.0001, "rotated to the barrel, facing %d" % facing)
 			T.eq(fx[0].pos, t.pos + Vector2(8, 8) + Cfg.dir_vec(facing) * 16.0, "just outside the barrel tip (the flash starts at its sheet's edge), facing %d" % facing)
 
 func test_holding_fire_gives_one_flash_per_bullet_not_per_tick() -> void:
@@ -543,7 +543,7 @@ func test_holding_fire_gives_one_flash_per_bullet_not_per_tick() -> void:
 	s.drain_events()
 	var flashes := 0
 	for i in 30:
-		s.set_input(1, Cfg.NONE, true, i + 1)
+		s.set_input(1, Cfg.STOP, true, i + 1)
 		s.step(1.0 / 30)
 		flashes += s.drain_events().filter(func(e): return e.k == "fx" and e.fx == "muzzle").size()
 	T.ok(flashes >= 1 and flashes <= 2, "a second of held fire fires one or two bullets, got %d flashes" % flashes)
@@ -551,15 +551,15 @@ func test_holding_fire_gives_one_flash_per_bullet_not_per_tick() -> void:
 func test_refused_fire_emits_no_flash() -> void:
 	var s := _sim(_rows(120, 8))
 	var t := _tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
 	s.drain_events()
-	s.set_input(1, Cfg.NONE, true, 2)
+	s.set_input(1, Cfg.STOP, true, 2)
 	s.step(1.0 / 30)
 	T.eq(_fx_events(s, "muzzle").size(), 0, "the bullet limit is reached: no flash")
 	t.alive = false
 	t.respawn_t = 100.0
-	s.set_input(1, Cfg.NONE, true, 3)
+	s.set_input(1, Cfg.STOP, true, 3)
 	s.step(1.0 / 30)
 	T.eq(_fx_events(s, "muzzle").size(), 0, "a dead tank does not fire")
 
@@ -598,7 +598,7 @@ func test_a_blocked_steel_hit_gives_sparks_but_no_dust() -> void:
 func _muzzle_times(s: Sim, secs: float, id := 1) -> Array:
 	var times := []
 	for i in int(secs * Cfg.TICK_HZ):
-		s.set_input(id, Cfg.NONE, true, i + 1)   # held fire, re-sent every tick like a real client
+		s.set_input(id, Cfg.STOP, true, i + 1)   # held fire, re-sent every tick like a real client
 		s.step(1.0 / Cfg.TICK_HZ)
 		for e in s.drain_events():
 			if e.k == "fx" and e.fx == "muzzle":
@@ -632,7 +632,7 @@ func test_the_cooldown_also_applies_to_tanks_allowed_two_bullets() -> void:
 func test_a_fresh_tank_can_fire_on_its_first_tick() -> void:
 	var s := _sim(_rows(120, 8))
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / Cfg.TICK_HZ)
 	T.eq(s.bullets.size(), 1, "no waiting before the first shot")
 

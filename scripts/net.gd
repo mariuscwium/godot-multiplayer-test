@@ -16,9 +16,9 @@ func resync() -> void:
 		server.on_resync(multiplayer.get_remote_sender_id())
 
 @rpc("any_peer", "unreliable_ordered")
-func input(seq: Variant, dir: Variant, fire: Variant) -> void:
+func input(seq: Variant, drive: Variant, fire: Variant) -> void:
 	if server:
-		server.on_input(multiplayer.get_remote_sender_id(), seq, dir, fire)
+		server.on_input(multiplayer.get_remote_sender_id(), seq, drive, fire)
 
 @rpc("authority", "reliable")
 func c_welcome(info: Dictionary) -> void:

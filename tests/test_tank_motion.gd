@@ -1,5 +1,8 @@
 extends RefCounted
 
+const FWD := 8       # Cfg.drive(1, 1)
+const DT := 1.0 / 30.0
+
 func _rows(w: int, h: int, fill := ".") -> Array:
 	var rows := []
 	for y in h:
@@ -12,174 +15,150 @@ func _map(rows: Array) -> GameMap:
 func _put(rows: Array, cx: int, cy: int, c: String) -> void:
 	rows[cy] = rows[cy].substr(0, cx) + c + rows[cy].substr(cx + 1)
 
-func test_moves_right_in_open() -> void:
-	var m := _map(_rows(20, 8))
-	var r := TankMotion.step(m, Vector2(0, 16), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.5)
-	T.near(r.pos.x, 30.0, 0.01, "x after 0.5s")
-	T.near(r.pos.y, 16.0, 0.01, "y unchanged")
-	T.eq(r.facing, Cfg.Dir.RIGHT, "facing")
+# Run a drive code for secs; returns {pos, facing, slide_t}.
+func _run(m: GameMap, pos: Vector2, heading: float, drive: int, secs: float, slide := 0.0) -> Dictionary:
+	var r := {"pos": pos, "facing": heading, "slide_t": slide}
+	for i in roundi(secs / DT):
+		r = TankMotion.step(m, r.pos, r.facing, drive, r.slide_t, DT)
+	return r
+
+func test_both_tracks_forward_drives_straight() -> void:
+	var m := _map(_rows(40, 20))
+	var r := _run(m, Vector2(8, 40), Cfg.heading(Cfg.Dir.RIGHT), FWD, 1.0)
+	T.near(r.pos.x, 68.0, 0.01, "60 px in a second")
+	T.near(r.pos.y, 40.0, 0.01, "no sideways drift")
+	T.near(r.facing, PI / 2.0, 0.0001, "heading unchanged")
+
+func test_both_tracks_back_reverses() -> void:
+	var m := _map(_rows(40, 20))
+	var r := _run(m, Vector2(100, 40), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(-1, -1), 0.5)
+	T.near(r.pos.x, 70.0, 0.01, "backed up 30 px")
+	T.near(r.facing, PI / 2.0, 0.0001, "heading unchanged")
 
 func test_idle_does_not_move() -> void:
 	var m := _map(_rows(20, 8))
-	var r := TankMotion.step(m, Vector2(10, 16), Cfg.Dir.RIGHT, Cfg.NONE, 0.0, 0.1)
+	var r := TankMotion.step(m, Vector2(10, 16), 1.0, Cfg.STOP, 0.0, 0.1)
 	T.eq(r.pos, Vector2(10, 16), "no movement without input")
+	T.eq(r.facing, 1.0, "no turning without input")
+
+func test_left_track_only_turns_clockwise() -> void:
+	var m := _map(_rows(60, 40))
+	var r := _run(m, Vector2(100, 100), 0.0, Cfg.drive(1, 0), 0.5)
+	T.ok(r.facing > 0.5 and r.facing < PI, "heading swung clockwise, got %f" % r.facing)
+	T.ok(r.pos.x > 100.0, "and the tank curved to the right")
+
+func test_right_track_only_turns_anticlockwise() -> void:
+	var m := _map(_rows(60, 40))
+	var r := _run(m, Vector2(100, 100), 0.0, Cfg.drive(0, 1), 0.5)
+	T.ok(r.facing > PI and r.facing < TAU - 0.5, "heading swung anticlockwise, got %f" % r.facing)
+	T.ok(r.pos.x < 100.0, "and the tank curved to the left")
+
+func test_one_track_circles_about_the_idle_track() -> void:
+	var m := _map(_rows(60, 40))
+	var start := Vector2(100, 100)
+	var centre := start + Vector2(8, 8)
+	# the idle (right) track sits TRACK_GAP / 2 to the right of the centre when facing up
+	var pivot := centre + Vector2(Cfg.TRACK_GAP * 0.5, 0)
+	var r := _run(m, start, 0.0, Cfg.drive(1, 0), 1.0)
+	var c: Vector2 = r.pos + Vector2(8, 8)
+	T.near(c.distance_to(pivot), Cfg.TRACK_GAP * 0.5, 0.5, "stays on a circle round the idle track")
+
+func test_opposite_tracks_spin_on_the_spot() -> void:
+	var m := _map(_rows(40, 20))
+	var r := _run(m, Vector2(100, 40), 0.0, Cfg.drive(1, -1), 0.5)
+	T.near(r.pos.x, 100.0, 0.001, "x unchanged")
+	T.near(r.pos.y, 40.0, 0.001, "y unchanged")
+	T.near(r.facing, 2.0 * Cfg.TANK_SPEED / Cfg.TRACK_GAP * 0.5, 0.01, "turned by omega * t")
+
+func test_heading_wraps_into_0_tau() -> void:
+	var m := _map(_rows(40, 20))
+	var r := _run(m, Vector2(100, 40), 0.1, Cfg.drive(-1, 1), 0.2)
+	T.ok(r.facing >= 0.0 and r.facing < TAU, "wrapped: %f" % r.facing)
 
 func test_stops_flush_at_brick() -> void:
 	var rows := _rows(20, 8)
 	for y in 8:
 		_put(rows, 6, y, "B")
 	var m := _map(rows)
-	var p := Vector2(0, 16)
-	for i in 20:
-		p = TankMotion.step(m, p, Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1).pos
-	T.near(p.x, 32.0, 0.5, "flush against brick at px 48")
-	T.ok(not m.tank_blocked(Rect2(p, Vector2(16, 16))), "not inside the brick")
+	var r := _run(m, Vector2(0, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 2.0)
+	T.near(r.pos.x, 48.0 - 15.0, 0.1, "flush against the brick at px 48 (1 px hitbox inset)")
+	T.ok(not m.tank_blocked(Rect2(r.pos + Vector2(1, 1), Vector2(14, 14))), "not inside the brick")
 
-func test_turn_snaps_to_8px() -> void:
-	var m := _map(_rows(20, 8))
-	var r := TankMotion.step(m, Vector2(40, 13), Cfg.Dir.UP, Cfg.Dir.RIGHT, 0.0, 0.01)
-	T.near(r.pos.y, 16.0, 0.001, "13 rounds to 16")
-	r = TankMotion.step(m, Vector2(40, 21), Cfg.Dir.UP, Cfg.Dir.RIGHT, 0.0, 0.01)
-	T.near(r.pos.y, 24.0, 0.001, "21 rounds to 24")
-	r = TankMotion.step(m, Vector2(13, 40), Cfg.Dir.LEFT, Cfg.Dir.DOWN, 0.0, 0.01)
-	T.near(r.pos.x, 16.0, 0.001, "x snaps when turning to vertical")
+func test_slides_along_a_wall_when_driving_diagonally() -> void:
+	var rows := _rows(20, 12)
+	for y in 12:
+		_put(rows, 10, y, "S")
+	var m := _map(rows)
+	var heading := PI / 4.0 + PI / 2.0 * 0.0   # up and to the right
+	var r := _run(m, Vector2(40, 60), heading, FWD, 1.0)
+	T.near(r.pos.x, 80.0 - 15.0, 0.1, "x stopped at the wall")
+	T.ok(r.pos.y < 50.0, "kept moving up along it, y=%f" % r.pos.y)
 
-func test_no_snap_when_continuing_same_axis() -> void:
-	var m := _map(_rows(20, 8))
-	var r := TankMotion.step(m, Vector2(40, 13), Cfg.Dir.RIGHT, Cfg.Dir.LEFT, 0.0, 0.01)
-	T.near(r.pos.y, 13.0, 0.001, "reversing along the same axis keeps y")
-
-func test_snapped_tank_enters_two_cell_gap() -> void:
+func test_fits_through_a_two_cell_gap_at_any_offset() -> void:
 	var rows := _rows(20, 8)
 	for x in range(4, 20):
 		for y in [0, 1, 4, 5, 6, 7]:
 			_put(rows, x, y, "B")
 	var m := _map(rows)
-	var r := TankMotion.step(m, Vector2(8, 17), Cfg.Dir.UP, Cfg.Dir.RIGHT, 0.0, 0.5)
-	T.near(r.pos.y, 16.0, 0.001, "snapped into the gap row")
-	T.near(r.pos.x, 38.0, 0.01, "travelled 30px along the gap")
+	# gap rows 2-3 (px 16..32): driving right a little off true still gets in thanks to the hitbox inset
+	var r := _run(m, Vector2(8, 16.6), Cfg.heading(Cfg.Dir.RIGHT), FWD, 0.5)
+	T.near(r.pos.x, 38.0, 0.01, "travelled 30 px along the gap")
 
-func test_ice_slides_after_release() -> void:
-	var m := _map(_rows(60, 8, "I"))
-	var r := TankMotion.step(m, Vector2(8, 16), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1)
-	T.near(r.slide_t, Cfg.ICE_SLIDE_S, 0.0001, "momentum armed on ice")
-	var x0: float = r.pos.x
-	r = TankMotion.step(m, r.pos, r.facing, Cfg.NONE, r.slide_t, 0.1)
-	T.near(r.pos.x - x0, 6.0, 0.01, "first coasting tick is still at full speed")
-	var guard := 0
-	while r.slide_t > 0.0 and guard < 200:
-		r = TankMotion.step(m, r.pos, r.facing, Cfg.NONE, r.slide_t, 1.0 / 30.0)
-		guard += 1
-	var x1: float = r.pos.x
-	r = TankMotion.step(m, r.pos, r.facing, Cfg.NONE, r.slide_t, 0.1)
-	T.near(r.pos.x, x1, 0.0001, "stopped once the momentum is spent")
-
-func test_ice_coast_is_long_and_fades() -> void:
-	var m := _map(_rows(60, 8, "I"))
-	var r := TankMotion.step(m, Vector2(8, 16), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	var x0: float = r.pos.x
-	var first_tick := 0.0
-	var last_tick := 0.0
-	var guard := 0
-	while r.slide_t > 0.0 and guard < 200:
-		var before: float = r.pos.x
-		r = TankMotion.step(m, r.pos, r.facing, Cfg.NONE, r.slide_t, 1.0 / 30.0)
-		if guard == 0:
-			first_tick = r.pos.x - before
-		last_tick = r.pos.x - before
-		guard += 1
-	var dist: float = r.pos.x - x0
-	T.ok(dist > 30.0 and dist < 42.0, "coasts about half of speed x time (~36px), got %.1f" % dist)
-	T.ok(last_tick < first_tick * 0.2, "speed fades out: first %.2f last %.2f" % [first_tick, last_tick])
-
-func test_holding_a_direction_on_ice_keeps_full_speed() -> void:
-	var m := _map(_rows(60, 8, "I"))
-	var r := TankMotion.step(m, Vector2(8, 16), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	var x0: float = r.pos.x
-	for i in 30:
-		r = TankMotion.step(m, r.pos, r.facing, Cfg.Dir.RIGHT, r.slide_t, 1.0 / 30.0)
-	T.near(r.pos.x - x0, 60.0, 0.5, "a second of driving covers 60px")
-	T.near(r.slide_t, Cfg.ICE_SLIDE_S, 0.0001, "momentum stays full while driving")
-
-func test_cannot_turn_or_brake_instantly_on_ice() -> void:
-	var m := _map(_rows(60, 12, "I"))
-	var r := TankMotion.step(m, Vector2(8, 32), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	var y0: float = r.pos.y
-	var x0: float = r.pos.x
-	r = TankMotion.step(m, r.pos, r.facing, Cfg.Dir.UP, r.slide_t, 1.0 / 30.0)
-	T.eq(r.facing, Cfg.Dir.RIGHT, "still heading right the tick after pressing up")
-	T.ok(r.pos.x > x0, "keeps sliding right")
-	T.near(r.pos.y, y0, 0.0001, "has not started going up")
-	var b := TankMotion.step(m, Vector2(8, 32), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	var bx: float = b.pos.x
-	b = TankMotion.step(m, b.pos, b.facing, Cfg.Dir.LEFT, b.slide_t, 1.0 / 30.0)
-	T.ok(b.pos.x > bx, "pressing the opposite way does not brake instantly either")
-
-func test_turn_takes_over_once_momentum_has_faded() -> void:
-	var m := _map(_rows(60, 12, "I"))
-	var r := TankMotion.step(m, Vector2(8, 32), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	var guard := 0
-	while r.facing == Cfg.Dir.RIGHT and guard < 120:
-		r = TankMotion.step(m, r.pos, r.facing, Cfg.Dir.UP, r.slide_t, 1.0 / 30.0)
-		guard += 1
-	T.eq(r.facing, Cfg.Dir.UP, "eventually turns")
-	var secs := guard / 30.0
-	T.ok(secs > 0.3 and secs < 0.7, "after roughly half a second of coasting, took %.2fs" % secs)
-
-func test_turning_is_instant_off_ice() -> void:
-	var m := _map(_rows(60, 12))
-	var r := TankMotion.step(m, Vector2(8, 32), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	r = TankMotion.step(m, r.pos, r.facing, Cfg.Dir.UP, r.slide_t, 1.0 / 30.0)
-	T.eq(r.facing, Cfg.Dir.UP, "normal ground: turns at once")
-
-func test_no_tunnel_large_dt() -> void:
+func test_turning_is_never_blocked_by_walls() -> void:
 	var rows := _rows(20, 8)
-	_put(rows, 4, 2, "S")
-	_put(rows, 4, 3, "S")
+	for y in 8:
+		_put(rows, 6, y, "B")
 	var m := _map(rows)
-	var p := Vector2(0, 16)
-	for i in 30:
-		p = TankMotion.step(m, p, Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1).pos
-	T.ok(p.x <= 16.0 + 0.01, "never past the 1-cell wall, x=%f" % p.x)
+	var r := TankMotion.step(m, Vector2(31, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(1, -1), 0.0, 0.1)
+	T.ok(r.facing != Cfg.heading(Cfg.Dir.RIGHT), "still rotates against a wall")
 
-func test_blocker_stops_tank() -> void:
-	var m := _map(_rows(20, 8))
-	var p := Vector2(0, 16)
-	for i in 20:
-		p = TankMotion.step(m, p, Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1, [Rect2(24, 16, 16, 16)]).pos
-	T.ok(p.x <= 8.01, "stopped by the blocker, x=%f" % p.x)
+func test_other_tank_blocks_moving_but_not_turning() -> void:
+	var m := _map(_rows(40, 8))
+	var other := Rect2(Vector2(24, 16), Vector2(16, 16))
+	var r := TankMotion.step(m, Vector2(7, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 0.0, 0.1, [other])
+	T.eq(r.pos, Vector2(7, 16), "move refused")
+	r = TankMotion.step(m, Vector2(7, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(1, -1), 0.0, 0.1, [other])
+	T.ok(r.facing != Cfg.heading(Cfg.Dir.RIGHT), "spin allowed")
 
-func test_blocker_already_overlapping_does_not_trap() -> void:
-	var m := _map(_rows(20, 8))
-	var r := TankMotion.step(m, Vector2(20, 16), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 0.1, [Rect2(24, 16, 16, 16)])
-	T.near(r.pos.x, 26.0, 0.01, "may move out of an existing overlap")
+func test_existing_overlap_does_not_trap() -> void:
+	var m := _map(_rows(40, 8))
+	var other := Rect2(Vector2(10, 16), Vector2(16, 16))
+	var r := TankMotion.step(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.LEFT), FWD, 0.0, 0.1, [other])
+	T.ok(r.pos.x < 8.0, "can drive away from an overlapping tank")
 
-func test_hitting_a_wall_on_ice_kills_the_momentum() -> void:
-	var rows := _rows(30, 12, "I")
-	for y in 12:
-		_put(rows, 8, y, "S")
+func test_ice_keeps_coasting_when_released() -> void:
+	var rows := _rows(60, 8)
+	for x in range(0, 60):
+		for y in range(0, 8):
+			_put(rows, x, y, "I")
 	var m := _map(rows)
-	var p := Vector2(0, 32)
-	var slide := 0.0
-	var facing := Cfg.Dir.RIGHT
-	for i in 60:   # drive into the wall
-		var r := TankMotion.step(m, p, facing, Cfg.Dir.RIGHT, slide, 1.0 / 30.0)
-		p = r.pos
-		slide = r.slide_t
-	T.near(p.x, 48.0, 0.6, "flush against the wall (px 64)")
-	var turned := TankMotion.step(m, p, facing, Cfg.Dir.UP, slide, 1.0 / 30.0)
-	T.eq(turned.facing, Cfg.Dir.UP, "can turn away at once: a wall leaves no momentum")
+	var r := _run(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 0.3)
+	T.ok(r.slide_t > 0.0, "momentum while driving on ice")
+	var x0: float = r.pos.x
+	r = _run(m, r.pos, r.facing, Cfg.STOP, 0.5, r.slide_t)
+	T.ok(r.pos.x > x0 + 5.0, "coasted on after release, moved %f" % (r.pos.x - x0))
+	r = _run(m, r.pos, r.facing, Cfg.STOP, 2.0, r.slide_t)
+	T.eq(r.slide_t, 0.0, "momentum fades out")
 
-func test_coasting_into_a_wall_kills_the_momentum() -> void:
-	var rows := _rows(30, 12, "I")
-	for y in 12:
-		_put(rows, 8, y, "S")
+func test_ice_momentum_is_signed_when_reversing() -> void:
+	var rows := _rows(60, 8)
+	for x in range(0, 60):
+		for y in range(0, 8):
+			_put(rows, x, y, "I")
 	var m := _map(rows)
-	var r := TankMotion.step(m, Vector2(40, 32), Cfg.Dir.RIGHT, Cfg.Dir.RIGHT, 0.0, 1.0 / 30.0)
-	var guard := 0
-	while r.slide_t > 0.0 and guard < 100:
-		r = TankMotion.step(m, r.pos, r.facing, Cfg.NONE, r.slide_t, 1.0 / 30.0)
-		guard += 1
-	T.ok(guard / 30.0 < Cfg.ICE_SLIDE_S * 0.8, "the wall stopped it long before the momentum would have faded (%.2fs)" % (guard / 30.0))
-	var turned := TankMotion.step(m, r.pos, r.facing, Cfg.Dir.UP, r.slide_t, 1.0 / 30.0)
-	T.eq(turned.facing, Cfg.Dir.UP, "turns at once after sliding into the wall")
+	var r := _run(m, Vector2(100, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(-1, -1), 0.2)
+	T.ok(r.slide_t < 0.0, "backward momentum is negative")
+	var x0: float = r.pos.x
+	r = _run(m, r.pos, r.facing, Cfg.STOP, 0.3, r.slide_t)
+	T.ok(r.pos.x < x0, "keeps coasting backwards")
+
+func test_wall_stops_an_ice_slide_dead() -> void:
+	var rows := _rows(20, 8)
+	for x in range(0, 20):
+		for y in range(0, 8):
+			_put(rows, x, y, "I")
+	for y in 8:
+		_put(rows, 8, y, "B")
+	var m := _map(rows)
+	var r := _run(m, Vector2(20, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.STOP, 1.0, Cfg.ICE_SLIDE_S)
+	T.eq(r.slide_t, 0.0, "momentum cleared on impact")

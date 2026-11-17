@@ -5,7 +5,7 @@ class Tank extends RefCounted:
 	var id := 0
 	var name := ""
 	var pos := Vector2.ZERO        # top-left, px
-	var facing := Cfg.Dir.UP
+	var facing := 0.0              # heading, radians (0 = up, clockwise)
 	var alive := true
 	var respawn_t := 0.0
 	var shield_t := 0.0
@@ -15,7 +15,7 @@ class Tank extends RefCounted:
 	var last_fire := -1000.0       # sim time of the last shot (for the fire cooldown)
 	var heal_t := 0.0              # progress towards the next healed hp
 	var kills := 0
-	var input_dir := Cfg.NONE
+	var input_drive := Cfg.STOP
 	var input_fire := false
 	var ack_seq := 0
 	var slide_t := 0.0
@@ -24,7 +24,7 @@ class Tank extends RefCounted:
 class Bullet extends RefCounted:
 	var id := 0
 	var pos := Vector2.ZERO        # centre, px
-	var dir := Cfg.Dir.UP
+	var heading := 0.0             # radians, as Tank.facing
 	var owner := 0
 	var stars := 0                 # shooter's stars at fire time
 	var travelled := 0.0           # px flown since the muzzle
@@ -62,7 +62,7 @@ func add_tank(id: int, name_: String) -> void:
 func remove_tank(id: int) -> void:
 	tanks.erase(id)
 
-func set_input(id: int, dir: int, fire: bool, seq: int) -> void:
+func set_input(id: int, drive: int, fire: bool, seq: int) -> void:
 	var t: Tank = tanks.get(id)
 	if t == null:
 		return
@@ -70,7 +70,7 @@ func set_input(id: int, dir: int, fire: bool, seq: int) -> void:
 	t.last_input = time
 	if not t.alive:
 		return
-	t.input_dir = dir if dir >= 0 and dir <= 3 else Cfg.NONE
+	t.input_drive = drive if drive >= 0 and drive <= 8 else Cfg.STOP
 	t.input_fire = fire
 
 func drain_events() -> Array:
@@ -89,24 +89,32 @@ func _fx(kind: String, pos: Vector2, rot: float = 0.0, tank: int = 0) -> void:
 		e["tank"] = tank
 	_emit(e)
 
-# Where a bullet struck the surface of the cell it just entered (not a few px inside it).
+# Where a bullet struck the surface it just entered (not a few px inside it): back out along its path.
 func _face_point(b: Bullet) -> Vector2:
-	var cx := floori(b.pos.x / Cfg.CELL)
-	var cy := floori(b.pos.y / Cfg.CELL)
-	match b.dir:
-		Cfg.Dir.RIGHT: return Vector2(cx * Cfg.CELL, b.pos.y)
-		Cfg.Dir.LEFT: return Vector2((cx + 1) * Cfg.CELL, b.pos.y)
-		Cfg.Dir.DOWN: return Vector2(b.pos.x, cy * Cfg.CELL)
-	return Vector2(b.pos.x, (cy + 1) * Cfg.CELL)
+	var v := Cfg.heading_vec(b.heading)
+	var hi := b.pos   # inside the obstacle
+	var lo := hi
+	for _i in int(BULLET_STEP) + 1:   # back out until clear, then bisect to the surface
+		lo = hi - v
+		if not _pair_blocked(_pair_at(lo, b.heading)):
+			break
+		hi = lo
+	for _i in 8:
+		var mid := (lo + hi) * 0.5
+		if _pair_blocked(_pair_at(mid, b.heading)):
+			hi = mid
+		else:
+			lo = mid
+	return (lo + hi) * 0.5
 
 func _respawn(t: Tank) -> void:
 	t.pos = _pick_spawn(t)
-	t.facing = Cfg.Dir.UP
+	t.facing = 0.0
 	t.alive = true
 	t.shield_t = Cfg.SPAWN_SHIELD_S
 	t.stars = 0
 	t.hp = Cfg.MAX_HP
-	t.input_dir = Cfg.NONE
+	t.input_drive = Cfg.STOP
 	t.input_fire = false
 	t.slide_t = 0.0
 	t.last_input = time
@@ -142,7 +150,7 @@ func _kill(victim: Tank, killer_id: int) -> void:
 	victim.respawn_t = Cfg.RESPAWN_S
 	victim.stars = 0
 	victim.shield_t = 0.0
-	victim.input_dir = Cfg.NONE
+	victim.input_drive = Cfg.STOP
 	victim.input_fire = false
 	var k: Tank = tanks.get(killer_id)
 	if k != null:
@@ -180,7 +188,7 @@ func step(dt: float) -> void:
 	for id in ids:
 		var t: Tank = tanks[id]
 		if t.alive and time - t.last_input > Cfg.INPUT_TIMEOUT_S:
-			t.input_dir = Cfg.NONE   # client went silent (stalled, hidden tab): stop driving and firing
+			t.input_drive = Cfg.STOP   # client went silent (stalled, hidden tab): stop driving and firing
 			t.input_fire = false
 	for id in ids:
 		var t: Tank = tanks[id]
@@ -209,7 +217,7 @@ func _move_tank(t: Tank, dt: float) -> void:
 	for o in tanks.values():
 		if o != t and o.alive:
 			blockers.append(tank_rect(o))
-	var r := TankMotion.step(map, t.pos, t.facing, t.input_dir, t.slide_t, dt, blockers)
+	var r := TankMotion.step(map, t.pos, t.facing, t.input_drive, t.slide_t, dt, blockers)
 	t.pos = r.pos
 	t.facing = r.facing
 	t.slide_t = r.slide_t
@@ -221,13 +229,13 @@ func _fire(t: Tank) -> void:
 	var b := Bullet.new()
 	b.id = _next_bullet
 	_next_bullet += 1
-	b.dir = t.facing
+	b.heading = t.facing
 	b.owner = t.id
 	b.stars = t.stars
-	b.pos = t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.dir_vec(t.facing) * 8.0
+	b.pos = t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.heading_vec(t.facing) * 8.0
 	bullets.append(b)
-	var edge := t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.dir_vec(t.facing) * 8.0   # barrel tip
-	_fx("muzzle", Effects.anchored_pos("muzzle", edge, Cfg.dir_vec(t.facing)), TankSprite.angle(t.facing))
+	var edge := t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5 + Cfg.heading_vec(t.facing) * 8.0   # barrel tip
+	_fx("muzzle", Effects.anchored_pos("muzzle", edge, Cfg.heading_vec(t.facing)), t.facing)
 
 func _step_bullets(dt: float) -> void:
 	if bullets.is_empty():
@@ -239,7 +247,7 @@ func _step_bullets(dt: float) -> void:
 	for _i in n:
 		for b in bullets:
 			var sp := Cfg.BULLET_SPEED_FAST if b.stars >= 1 else Cfg.BULLET_SPEED
-			b.pos += Cfg.dir_vec(b.dir) * sp * dt / n
+			b.pos += Cfg.heading_vec(b.heading) * sp * dt / n
 			b.travelled += sp * dt / n
 		_resolve_bullets()
 		bullets = bullets.filter(func(b): return b.travelled < Cfg.BULLET_RANGE)
@@ -267,11 +275,7 @@ func _resolve_bullets() -> void:
 		if consumed.has(b):
 			continue
 		var pair := _bullet_pair(b)
-		var blocked := false
-		for c in pair:
-			if not map.bullet_passes(map.bullet_blocked_at(c.x, c.y)):
-				blocked = true
-		if blocked:
+		if _pair_blocked(pair):
 			consumed[b] = true
 			_bullet_hit_terrain(b, pair)
 	# 3. bullet vs bullet
@@ -299,15 +303,25 @@ func _resolve_bullets() -> void:
 			if v.hp <= 0:
 				_kill(v, shooter)
 
-# The two cells across the bullet's path, centred on its centreline.
+# The cells across the bullet's path: it is as wide as a block (two cells), so sample the centreline and
+# a point 4 px to each side. Heading straight along an axis that is exactly the two cells straddling it.
+func _pair_at(p: Vector2, heading: float) -> Array:
+	var side := Vector2(cos(heading), sin(heading)) * 4.0
+	var out: Array = []
+	for q in [p - side, p, p + side]:
+		var c := Vector2i(floori(q.x / Cfg.CELL), floori(q.y / Cfg.CELL))
+		if not out.has(c):
+			out.append(c)
+	return out
+
 func _bullet_pair(b: Bullet) -> Array:
-	if b.dir == Cfg.Dir.LEFT or b.dir == Cfg.Dir.RIGHT:
-		var cx := floori(b.pos.x / Cfg.CELL)
-		var first := roundi((b.pos.y - Cfg.CELL) / float(Cfg.CELL))
-		return [Vector2i(cx, first), Vector2i(cx, first + 1)]
-	var cy := floori(b.pos.y / Cfg.CELL)
-	var first := roundi((b.pos.x - Cfg.CELL) / float(Cfg.CELL))
-	return [Vector2i(first, cy), Vector2i(first + 1, cy)]
+	return _pair_at(b.pos, b.heading)
+
+func _pair_blocked(pair: Array) -> bool:
+	for c in pair:
+		if not map.bullet_passes(map.bullet_blocked_at(c.x, c.y)):
+			return true
+	return false
 
 # Brick takes two hits (the first turns it into BRICK_DAMAGED); a 3-star shot breaks brick or steel outright.
 func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
@@ -320,8 +334,8 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 	if on_brick:
 		_fx("hit_brick", face)
 	else:   # ricochet sparks leave the surface and fly back where the bullet came from
-		var back := (b.dir + 2) % 4
-		_fx("hit_steel", Effects.anchored_pos("hit_steel", face, Cfg.dir_vec(back)), TankSprite.angle(back))
+		var back := b.heading + PI
+		_fx("hit_steel", Effects.anchored_pos("hit_steel", face, Cfg.heading_vec(back)), back)
 	var broke := false
 	for c in pair:
 		var t := map.get_cell(c.x, c.y)
@@ -333,7 +347,7 @@ func _bullet_hit_terrain(b: Bullet, pair: Array) -> void:
 				_cells.append([c.x, c.y, Cfg.Tile.EMPTY])
 				broke = true
 	if broke:
-		_fx("brick_dust", _face_point(b))   # one puff per bullet, however many cells it took out
+		_fx("brick_dust", face)   # one puff per bullet, however many cells it took out
 
 func drop_powerup(pos: Vector2, type: int) -> void:
 	var snapped := (pos / Cfg.CELL).round() * Cfg.CELL

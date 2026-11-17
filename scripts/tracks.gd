@@ -15,7 +15,7 @@ static func alpha(age_s: float) -> float:
 	return START_ALPHA * clampf(1.0 - age_s / LIFETIME_S, 0.0, 1.0)
 
 # `stamp_ok` is false where marks make no sense (ice): the start point still follows the tank.
-func update(id: int, center: Vector2, facing: int, stamp_ok: bool, now_ms: int) -> void:
+func update(id: int, center: Vector2, facing: float, stamp_ok: bool, now_ms: int) -> void:
 	if not _last.has(id):
 		_last[id] = center
 		return
@@ -23,7 +23,7 @@ func update(id: int, center: Vector2, facing: int, stamp_ok: bool, now_ms: int) 
 	if d >= JUMP_PX or not stamp_ok:
 		_last[id] = center
 	elif d >= SPACING_PX:
-		marks.append({"pos": center, "rot": TankSprite.angle(facing), "born_ms": now_ms})
+		marks.append({"pos": center, "rot": facing, "born_ms": now_ms})
 		_last[id] = center
 
 func forget(id: int) -> void:

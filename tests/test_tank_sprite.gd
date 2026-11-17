@@ -11,12 +11,6 @@ func test_src_rect() -> void:
 	T.eq(TankSprite.src_rect(2, 1), Rect2(64, 32, 32, 32), "tier 2 frame 1")
 	T.eq(TankSprite.src_rect(9, 3), Rect2(96, 32, 32, 32), "stars capped, odd frame wraps to 1")
 
-func test_angle() -> void:
-	T.near(TankSprite.angle(Cfg.Dir.UP), 0.0, 0.0001, "up")
-	T.near(TankSprite.angle(Cfg.Dir.RIGHT), PI / 2.0, 0.0001, "right")
-	T.near(TankSprite.angle(Cfg.Dir.DOWN), PI, 0.0001, "down")
-	T.near(TankSprite.angle(Cfg.Dir.LEFT), 3.0 * PI / 2.0, 0.0001, "left")
-
 func test_tanks_png_has_eight_clean_tanks() -> void:
 	var tex := load("res://assets/tanks.png") as Texture2D
 	T.ok(tex != null, "assets/tanks.png loads")

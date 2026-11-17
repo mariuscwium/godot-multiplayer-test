@@ -20,7 +20,7 @@ func _tank(sim: Sim, id: int, pos: Vector2, facing: int) -> Sim.Tank:
 	sim.add_tank(id, "t%d" % id)
 	var t: Sim.Tank = sim.tanks[id]
 	t.pos = pos
-	t.facing = facing
+	t.facing = Cfg.heading(facing)
 	t.shield_t = 0.0
 	t.hp = 1   # these tests are about other things: one hit kills
 	return t
@@ -31,9 +31,9 @@ func test_kill_drops_powerup_at_victim() -> void:
 	var s := _sim(rows)
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	_tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	s.step(1.0 / 30)
-	s.set_input(1, Cfg.NONE, false, 2)
+	s.set_input(1, Cfg.STOP, false, 2)
 	_run(s, 0.5)
 	T.eq(s.powerups.size(), 1, "one drop")
 	T.eq(s.powerups[0].pos, Vector2(64, 16), "at the victim's spot, grid aligned")
@@ -84,11 +84,11 @@ func test_grenade_clears_nearby_brick_and_bullets_not_tanks() -> void:
 	var e := _tank(s, 2, Vector2(40, 40), Cfg.Dir.LEFT)
 	var near_b := Sim.Bullet.new()
 	near_b.pos = Vector2(30, 60)
-	near_b.dir = Cfg.Dir.UP
+	near_b.heading = Cfg.heading(Cfg.Dir.UP)
 	near_b.owner = 2
 	var far_b := Sim.Bullet.new()
 	far_b.pos = Vector2(400, 60)
-	far_b.dir = Cfg.Dir.UP
+	far_b.heading = Cfg.heading(Cfg.Dir.UP)
 	far_b.owner = 2
 	s.bullets = [near_b, far_b]
 	s.drop_powerup(Vector2(0, 16), Cfg.PowerType.GRENADE)
@@ -109,7 +109,7 @@ func test_death_resets_stars() -> void:
 	_tank(s, 1, Vector2(0, 16), Cfg.Dir.RIGHT)
 	var b := _tank(s, 2, Vector2(64, 16), Cfg.Dir.LEFT)
 	b.stars = 2
-	s.set_input(1, Cfg.NONE, true, 1)
+	s.set_input(1, Cfg.STOP, true, 1)
 	_run(s, 0.5)
 	T.ok(not b.alive, "victim dead")
 	T.eq(b.stars, 0, "stars reset on death")
@@ -208,7 +208,7 @@ func test_heal_tick_emits_a_heart_effect_per_healed_point() -> void:
 	s.drain_events()
 	var hearts := 0
 	for i in int((Cfg.HEAL_DELAY_S + 3.0 * Cfg.HEAL_INTERVAL_S) * Cfg.TICK_HZ):
-		s.set_input(1, Cfg.NONE, false, i + 1)
+		s.set_input(1, Cfg.STOP, false, i + 1)
 		s.step(1.0 / Cfg.TICK_HZ)
 		for e in s.drain_events().filter(func(e): return e.k == "fx" and e.fx == "heal"):
 			hearts += 1

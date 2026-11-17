@@ -78,7 +78,9 @@ func _draw() -> void:
 	for id in client.view.tanks:
 		var tk: Dictionary = client.view.tanks[id]
 		if id != client.my_id and tk.alive:
-			_draw_tank(id, client.shown.get(id, tk.pos), tk, t)
+			var other := tk.duplicate()
+			other.facing = client.shown_facing.get(id, tk.facing)
+			_draw_tank(id, client.shown.get(id, tk.pos), other, t)
 	_draw_bullets()
 	for id in _last_pos.keys():
 		if not client.view.tanks.has(id):
@@ -92,7 +94,7 @@ func _draw() -> void:
 	var me: Dictionary = client.view.tanks.get(client.my_id, {})
 	if not me.is_empty() and me.alive:
 		var mine := me.duplicate()
-		mine.facing = client.my_facing  # predicted facing, not the older snapshot's
+		mine.facing = client.my_draw_facing  # predicted and smoothed, not the older snapshot's
 		_draw_tank(client.my_id, client.my_draw_pos, mine, t, true)
 	_draw_effects()
 
@@ -138,7 +140,7 @@ func _draw_tank(id: int, pos: Vector2, tk: Dictionary, t: float, mine := false) 
 	var cell := client.map.get_cell(floori(center.x / C), floori(center.y / C))
 	tracks.update(id, center, tk.facing, cell != Cfg.Tile.ICE, now_ms)
 	var frame := int(t * 10.0) % 2 if now_ms - _moved_ms.get(id, -1000) < 120 else 0
-	draw_set_transform(pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5, TankSprite.angle(tk.facing), Vector2.ONE)
+	draw_set_transform(pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5, tk.facing, Vector2.ONE)
 	draw_texture_rect_region(tanks, Rect2(-8, -8, Cfg.TANK_PX, Cfg.TANK_PX), TankSprite.src_rect(tk.stars, frame),
 		Color.from_hsv(hue_for(id), 0.55, 1.0))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -159,7 +161,7 @@ func _draw_bullets() -> void:
 	var age := minf((Time.get_ticks_msec() - client.snap_ms) / 1000.0, 0.1)
 	for b in client.view.bullets:
 		var sp := Cfg.BULLET_SPEED_FAST if b.fast else Cfg.BULLET_SPEED
-		var p: Vector2 = b.pos + Cfg.dir_vec(b.dir) * sp * age
+		var p: Vector2 = b.pos + Cfg.heading_vec(b.heading) * sp * age
 		draw_rect(Rect2(p - Vector2(1.5, 1.5), Vector2(3, 3)), Color(1, 0.95, 0.6))
 
 func _draw_powerup(p: Dictionary, t: float) -> void:

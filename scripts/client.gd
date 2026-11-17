@@ -22,10 +22,13 @@ var shown := {}            # id -> smoothed position of remote tanks
 var my_pos := Vector2.ZERO
 var my_draw_pos := Vector2.ZERO  # my_pos smoothed between 30 Hz ticks, for camera and drawing
 var _prev_pos := Vector2.ZERO
-var my_facing := Cfg.Dir.UP
+var my_facing := 0.0       # predicted heading, radians
+var my_draw_facing := 0.0  # my_facing smoothed between ticks, like my_draw_pos
+var _prev_facing := 0.0
+var shown_facing := {}     # id -> smoothed heading of remote tanks
 var my_slide := 0.0
 var seq := 0
-var pending: Array = []    # [seq, dir] sent but not yet acked
+var pending: Array = []    # [seq, drive code] sent but not yet acked
 var lag_ms := 0
 var loss := 0.0
 var predict := true
@@ -34,7 +37,11 @@ var cam: Camera2D
 var _bot_rng := RandomNumberGenerator.new()
 var _bot_pause := 0
 var _queue: Array = []
-var _held: Array = []      # direction keys in press order; last pressed wins
+# Track keys: Left Shift / Right Shift drive the left / right track forward, Z and / (the keys next to them) reverse it.
+var _left_fwd := false
+var _right_fwd := false
+var _left_back := false
+var _right_back := false
 var _shot := ""           # --shot=<png>: save a screenshot 6s after joining, then quit (verification aid)
 var _shot_at := 0
 var _stats := false         # --stats: print how far snapshots visually move the local tank
@@ -61,7 +68,7 @@ func _blockers() -> Array:
 			out.append(Rect2(t.pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX)))
 	return out
 
-static func reconcile(map_: GameMap, server_pos: Vector2, facing: int, slide: float, pending_: Array, ack: int, blockers: Array = []) -> Dictionary:
+static func reconcile(map_: GameMap, server_pos: Vector2, facing: float, slide: float, pending_: Array, ack: int, blockers: Array = []) -> Dictionary:
 	var pos := server_pos
 	var f := facing
 	var s := slide
@@ -121,6 +128,7 @@ func _on_lost() -> void:
 	welcomed = false
 	view = {}
 	shown.clear()
+	shown_facing.clear()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 
 func on_welcome(info: Dictionary) -> void:
@@ -218,35 +226,39 @@ func prune_fx(now_ms: int) -> void:
 
 func _input(e: InputEvent) -> void:
 	if e is InputEventKey and not e.echo:
-		var d := Cfg.NONE
-		match e.keycode:
-			KEY_UP, KEY_W: d = Cfg.Dir.UP
-			KEY_RIGHT, KEY_D: d = Cfg.Dir.RIGHT
-			KEY_DOWN, KEY_S: d = Cfg.Dir.DOWN
-			KEY_LEFT, KEY_A: d = Cfg.Dir.LEFT
-		if d != Cfg.NONE:
-			_held.erase(d)
-			if e.pressed:
-				_held.append(d)
+		if e.keycode == KEY_SHIFT:
+			if e.location == KEY_LOCATION_LEFT:
+				_left_fwd = e.pressed
+			elif e.location == KEY_LOCATION_RIGHT:
+				_right_fwd = e.pressed
+		elif e.physical_keycode == KEY_Z:
+			_left_back = e.pressed
+		elif e.physical_keycode == KEY_SLASH:
+			_right_back = e.pressed
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		_held.clear()
+		_left_fwd = false
+		_right_fwd = false
+		_left_back = false
+		_right_back = false
 
 func _read_input() -> Dictionary:
 	if bot:
 		return _bot_input()
 	var fire := Input.is_key_pressed(KEY_SPACE) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-	return {"dir": _held.back() if not _held.is_empty() else Cfg.NONE, "fire": fire}
+	var l := int(_left_fwd) - int(_left_back)
+	var r := int(_right_fwd) - int(_right_back)
+	return {"drive": Cfg.drive(l, r), "fire": fire}
 
 # AI input with human-ish flaws: occasional freezes and skipped shots, so it can be beaten.
 func _bot_input() -> Dictionary:
 	var me: Dictionary = view.tanks.get(my_id, {})
 	if me.is_empty() or not me.alive:
-		return {"dir": Cfg.NONE, "fire": false}
+		return {"drive": Cfg.STOP, "fire": false}
 	if _bot_pause > 0:
 		_bot_pause -= 1
-		return {"dir": Cfg.NONE, "fire": false}
+		return {"drive": Cfg.STOP, "fire": false}
 	if _bot_rng.randf() < 0.01:
 		_bot_pause = 8
 	var others := []
@@ -262,27 +274,28 @@ func _physics_process(_delta: float) -> void:
 	if not welcomed:
 		return
 	_prev_pos = my_pos
+	_prev_facing = my_facing
 	var inp := _read_input()
 	seq += 1
-	var dir: int = inp.dir
+	var drive: int = inp.drive
 	if local_server == null:
-		pending.append([seq, dir])
+		pending.append([seq, drive])
 		if pending.size() > 300:
 			pending.pop_front()
 		var me: Dictionary = view.tanks.get(my_id, {})
 		if predict and (me.is_empty() or me.alive):
-			var r := TankMotion.step(map, my_pos, my_facing, dir, my_slide, 1.0 / Cfg.TICK_HZ, _blockers())
+			var r := TankMotion.step(map, my_pos, my_facing, drive, my_slide, 1.0 / Cfg.TICK_HZ, _blockers())
 			my_pos = r.pos
 			my_facing = r.facing
 			my_slide = r.slide_t
-		_send_delayed(seq, dir, inp.fire)
+		_send_delayed(seq, drive, inp.fire)
 	else:
-		local_server.on_input(1, seq, dir, inp.fire)
+		local_server.on_input(1, seq, drive, inp.fire)
 
 # --lag=ms / --loss=0..1 fake the client->server path for testing
-func _send_delayed(s: int, dir: int, fire: bool) -> void:
+func _send_delayed(s: int, drive: int, fire: bool) -> void:
 	var now := Time.get_ticks_msec()
-	_queue.append([now + lag_ms, s, dir, fire])
+	_queue.append([now + lag_ms, s, drive, fire])
 	while not _queue.is_empty() and _queue[0][0] <= now:
 		var q: Array = _queue.pop_front()
 		if randf() >= loss:
@@ -315,9 +328,12 @@ func _process(delta: float) -> void:
 			shown[id] = target
 		else:
 			shown[id] = shown[id].lerp(target, 1.0 - exp(-20.0 * delta))
+		var want: float = view.tanks[id].facing
+		shown_facing[id] = lerp_angle(shown_facing.get(id, want), want, 1.0 - exp(-20.0 * delta))
 	for id in shown.keys():
 		if not view.tanks.has(id):
 			shown.erase(id)
+			shown_facing.erase(id)
 	var now := Time.get_ticks_msec()
 	if _stats and now > _stats_ms and not _jumps.is_empty():
 		_stats_ms = now + 5000
@@ -335,6 +351,7 @@ func _process(delta: float) -> void:
 		my_draw_pos = my_pos  # respawn or hard correction: don't glide
 	else:
 		my_draw_pos = _prev_pos.lerp(my_pos, Engine.get_physics_interpolation_fraction())
+	my_draw_facing = lerp_angle(_prev_facing, my_facing, Engine.get_physics_interpolation_fraction())
 	cam.position = my_draw_pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5
 	cam.offset = ScreenShake.offset((now - shake_start_ms) / 1000.0, _shake_rng) if shake_start_ms >= 0 else Vector2.ZERO
 	var z := get_viewport_rect().size.y / VIEW_PX
