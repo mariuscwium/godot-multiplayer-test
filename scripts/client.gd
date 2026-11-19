@@ -26,7 +26,7 @@ var my_facing := 0.0       # predicted heading, radians
 var my_draw_facing := 0.0  # my_facing smoothed between ticks, like my_draw_pos
 var _prev_facing := 0.0
 var shown_facing := {}     # id -> smoothed heading of remote tanks
-var my_slide := 0.0
+var my_trk := Vector2.ZERO
 var seq := 0
 var pending: Array = []    # [seq, drive code] sent but not yet acked
 var lag_ms := 0
@@ -37,11 +37,7 @@ var cam: Camera2D
 var _bot_rng := RandomNumberGenerator.new()
 var _bot_pause := 0
 var _queue: Array = []
-# Track keys: Left Shift / Right Shift drive the left / right track forward, Z and / (the keys next to them) reverse it.
-var _left_fwd := false
-var _right_fwd := false
-var _left_back := false
-var _right_back := false
+# Arrow keys: up/down drive both tracks, left/right counter-drive them to turn (mixed in _read_input).
 var _shot := ""           # --shot=<png>: save a screenshot 6s after joining, then quit (verification aid)
 var _shot_at := 0
 var _stats := false         # --stats: print how far snapshots visually move the local tank
@@ -68,10 +64,10 @@ func _blockers() -> Array:
 			out.append(Rect2(t.pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX)))
 	return out
 
-static func reconcile(map_: GameMap, server_pos: Vector2, facing: float, slide: float, pending_: Array, ack: int, blockers: Array = []) -> Dictionary:
+static func reconcile(map_: GameMap, server_pos: Vector2, facing: float, trk: Vector2, pending_: Array, ack: int, blockers: Array = []) -> Dictionary:
 	var pos := server_pos
 	var f := facing
-	var s := slide
+	var s := trk
 	var rest := []
 	for p in pending_:
 		if p[0] <= ack:
@@ -80,8 +76,8 @@ static func reconcile(map_: GameMap, server_pos: Vector2, facing: float, slide: 
 		var r := TankMotion.step(map_, pos, f, p[1], s, 1.0 / Cfg.TICK_HZ, blockers)
 		pos = r.pos
 		f = r.facing
-		s = r.slide_t
-	return {"pos": pos, "facing": f, "slide": s, "pending": rest}
+		s = r.trk
+	return {"pos": pos, "facing": f, "trk": s, "pending": rest}
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -176,20 +172,20 @@ func on_snapshot(snap: Array) -> void:
 		pending.clear()
 		my_pos = me.pos
 		my_facing = me.facing
-		my_slide = 0.0
+		my_trk = Vector2.ZERO
 		return
-	var r := reconcile(map, me.pos, me.facing, me.slide, pending, me.ack, _blockers())
+	var r := reconcile(map, me.pos, me.facing, me.trk, pending, me.ack, _blockers())
 	pending = r.pending
 	if _stats:
 		_jumps.append(my_pos.distance_to(r.pos if predict and local_server == null else me.pos))
 	if predict and local_server == null:
 		my_pos = r.pos
 		my_facing = r.facing
-		my_slide = r.slide
+		my_trk = r.trk
 	else:
 		my_pos = me.pos
 		my_facing = me.facing
-		my_slide = me.slide
+		my_trk = me.trk
 
 func on_events(events: Array) -> void:
 	if not welcomed:
@@ -224,31 +220,14 @@ func _add_fx(kind: String, pos: Vector2, rot: float, tank: int = 0) -> void:
 func prune_fx(now_ms: int) -> void:
 	fx = fx.filter(func(f): return now_ms - f.born_ms < int(Effects.duration(f.kind) * 1000.0))
 
-func _input(e: InputEvent) -> void:
-	if e is InputEventKey and not e.echo:
-		if e.keycode == KEY_SHIFT:
-			if e.location == KEY_LOCATION_LEFT:
-				_left_fwd = e.pressed
-			elif e.location == KEY_LOCATION_RIGHT:
-				_right_fwd = e.pressed
-		elif e.physical_keycode == KEY_Z:
-			_left_back = e.pressed
-		elif e.physical_keycode == KEY_SLASH:
-			_right_back = e.pressed
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		_left_fwd = false
-		_right_fwd = false
-		_left_back = false
-		_right_back = false
-
 func _read_input() -> Dictionary:
 	if bot:
 		return _bot_input()
 	var fire := Input.is_key_pressed(KEY_SPACE) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-	var l := int(_left_fwd) - int(_left_back)
-	var r := int(_right_fwd) - int(_right_back)
+	var fwd := int(Input.is_physical_key_pressed(KEY_UP)) - int(Input.is_physical_key_pressed(KEY_DOWN))
+	var turn := int(Input.is_physical_key_pressed(KEY_RIGHT)) - int(Input.is_physical_key_pressed(KEY_LEFT))
+	var l := fwd + turn  # tracks: turning right = left track forward, right track back
+	var r := fwd - turn
 	return {"drive": Cfg.drive(l, r), "fire": fire}
 
 # AI input with human-ish flaws: occasional freezes and skipped shots, so it can be beaten.
@@ -284,10 +263,10 @@ func _physics_process(_delta: float) -> void:
 			pending.pop_front()
 		var me: Dictionary = view.tanks.get(my_id, {})
 		if predict and (me.is_empty() or me.alive):
-			var r := TankMotion.step(map, my_pos, my_facing, drive, my_slide, 1.0 / Cfg.TICK_HZ, _blockers())
+			var r := TankMotion.step(map, my_pos, my_facing, drive, my_trk, 1.0 / Cfg.TICK_HZ, _blockers())
 			my_pos = r.pos
 			my_facing = r.facing
-			my_slide = r.slide_t
+			my_trk = r.trk
 		_send_delayed(seq, drive, inp.fire)
 	else:
 		local_server.on_input(1, seq, drive, inp.fire)

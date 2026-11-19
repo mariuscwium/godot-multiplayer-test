@@ -21,8 +21,10 @@ const HEAL_DELAY_S := 4.0       # seconds after the last damage before a tank st
 const HEAL_INTERVAL_S := 5.0    # then it regains 1 hp every this many seconds
 const MAX_STARS := 3
 const MAX_HP := 3              # base shots to kill a tank; each star adds one more (snapshots pack hp in 3 bits: max 7)
-const ICE_SLIDE_S := 1.2        # momentum on ice: seconds to coast to a stop, speed fading linearly
-const TRACK_GAP := 16.0         # px between the two tracks: the smaller it is, the tighter one-track turns are
+const TRACK_ACCEL := 2.2        # per second: how fast a track speeds up (1.0 = full speed); low = heavy
+const TRACK_BRAKE := 3.5        # per second: how fast a track slows down or reverses
+const ICE_GRIP := 0.3           # ice scales accel and braking by this, so you slide
+const TRACK_GAP := 36.0         # px between the two tracks: the smaller it is, the tighter one-track turns are
 const HIT_INSET := 1.0          # terrain hitbox is the tank square shrunk by this per side, so free steering still fits 2-cell gaps
 const GRENADE_CELLS := 6
 const INPUT_TIMEOUT_S := 0.5   # a client silent this long is treated as having released everything

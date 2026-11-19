@@ -98,6 +98,8 @@ func _physics_process(_delta: float) -> void:
 	if sim == null:
 		return
 	for id in _queue:
+		if id == 1 and local_client:
+			continue   # host's own input is applied directly in on_input
 		var r := take_input(_queue[id])
 		if r.is_empty():
 			var t: Sim.Tank = sim.tanks.get(id)   # nothing arrived this tick: hold still, ack unchanged

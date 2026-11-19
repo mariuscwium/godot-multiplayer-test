@@ -15,7 +15,7 @@ func test_snapshot_roundtrip() -> void:
 	t.kills = 5
 	t.hp = 2
 	t.ack_seq = 123
-	t.slide_t = 0.2
+	t.trk = Vector2(0.2, -0.5)
 	var b := Sim.Bullet.new()
 	b.id = 9
 	b.pos = Vector2(100.25, 50.0)
@@ -39,7 +39,8 @@ func test_snapshot_roundtrip() -> void:
 	T.eq(dt.kills, 5, "kills")
 	T.eq(dt.hp, 2, "hp")
 	T.eq(dt.ack, 123, "ack")
-	T.near(dt.slide, 0.2, 0.002, "slide")
+	T.near(dt.trk.x, 0.2, 0.002, "left track")
+	T.near(dt.trk.y, -0.5, 0.002, "right track")
 	T.eq(d.bullets.size(), 1, "one bullet")
 	T.eq(d.bullets[0].owner, 7, "bullet owner")
 	T.near(d.bullets[0].heading, 2.5, 0.001, "bullet heading")

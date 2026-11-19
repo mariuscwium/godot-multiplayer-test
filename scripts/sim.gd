@@ -18,7 +18,7 @@ class Tank extends RefCounted:
 	var input_drive := Cfg.STOP
 	var input_fire := false
 	var ack_seq := 0
-	var slide_t := 0.0
+	var trk := Vector2.ZERO   # left/right track speed, -1..1 (see TankMotion)
 	var last_input := 0.0          # sim time of the last accepted input
 
 class Bullet extends RefCounted:
@@ -116,7 +116,7 @@ func _respawn(t: Tank) -> void:
 	t.hp = Cfg.MAX_HP
 	t.input_drive = Cfg.STOP
 	t.input_fire = false
-	t.slide_t = 0.0
+	t.trk = Vector2.ZERO
 	t.last_input = time
 	_emit({"k": "spawn", "id": t.id})
 	_fx("warp_in", t.pos + Vector2(Cfg.TANK_PX, Cfg.TANK_PX) * 0.5)
@@ -217,10 +217,10 @@ func _move_tank(t: Tank, dt: float) -> void:
 	for o in tanks.values():
 		if o != t and o.alive:
 			blockers.append(tank_rect(o))
-	var r := TankMotion.step(map, t.pos, t.facing, t.input_drive, t.slide_t, dt, blockers)
+	var r := TankMotion.step(map, t.pos, t.facing, t.input_drive, t.trk, dt, blockers)
 	t.pos = r.pos
 	t.facing = r.facing
-	t.slide_t = r.slide_t
+	t.trk = r.trk
 
 func _fire(t: Tank) -> void:
 	if _bullets_of(t.id) >= (2 if t.stars >= 2 else 1) or time - t.last_fire < Cfg.FIRE_COOLDOWN_S:

@@ -15,11 +15,13 @@ func _map(rows: Array) -> GameMap:
 func _put(rows: Array, cx: int, cy: int, c: String) -> void:
 	rows[cy] = rows[cy].substr(0, cx) + c + rows[cy].substr(cx + 1)
 
-# Run a drive code for secs; returns {pos, facing, slide_t}.
-func _run(m: GameMap, pos: Vector2, heading: float, drive: int, secs: float, slide := 0.0) -> Dictionary:
-	var r := {"pos": pos, "facing": heading, "slide_t": slide}
+# Run a drive code for secs; returns {pos, facing, trk}. The tracks start already at the driven speed
+# (cruising) unless trk is given, so most tests can ignore the spin-up.
+func _run(m: GameMap, pos: Vector2, heading: float, drive: int, secs: float, trk = null) -> Dictionary:
+	var start: Vector2 = trk if trk != null else Vector2(Cfg.drive_left(drive), Cfg.drive_right(drive))
+	var r := {"pos": pos, "facing": heading, "trk": start}
 	for i in roundi(secs / DT):
-		r = TankMotion.step(m, r.pos, r.facing, drive, r.slide_t, DT)
+		r = TankMotion.step(m, r.pos, r.facing, drive, r.trk, DT)
 	return r
 
 func test_both_tracks_forward_drives_straight() -> void:
@@ -37,7 +39,7 @@ func test_both_tracks_back_reverses() -> void:
 
 func test_idle_does_not_move() -> void:
 	var m := _map(_rows(20, 8))
-	var r := TankMotion.step(m, Vector2(10, 16), 1.0, Cfg.STOP, 0.0, 0.1)
+	var r := TankMotion.step(m, Vector2(10, 16), 1.0, Cfg.STOP, Vector2.ZERO, 0.1)
 	T.eq(r.pos, Vector2(10, 16), "no movement without input")
 	T.eq(r.facing, 1.0, "no turning without input")
 
@@ -109,56 +111,59 @@ func test_turning_is_never_blocked_by_walls() -> void:
 	for y in 8:
 		_put(rows, 6, y, "B")
 	var m := _map(rows)
-	var r := TankMotion.step(m, Vector2(31, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(1, -1), 0.0, 0.1)
+	var r := TankMotion.step(m, Vector2(31, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(1, -1), Vector2(1, -1), 0.1)
 	T.ok(r.facing != Cfg.heading(Cfg.Dir.RIGHT), "still rotates against a wall")
 
 func test_other_tank_blocks_moving_but_not_turning() -> void:
 	var m := _map(_rows(40, 8))
 	var other := Rect2(Vector2(24, 16), Vector2(16, 16))
-	var r := TankMotion.step(m, Vector2(7, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 0.0, 0.1, [other])
+	var r := TankMotion.step(m, Vector2(7, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, Vector2(1, 1), 0.1, [other])
 	T.eq(r.pos, Vector2(7, 16), "move refused")
-	r = TankMotion.step(m, Vector2(7, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(1, -1), 0.0, 0.1, [other])
+	r = TankMotion.step(m, Vector2(7, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(1, -1), Vector2(1, -1), 0.1, [other])
 	T.ok(r.facing != Cfg.heading(Cfg.Dir.RIGHT), "spin allowed")
 
 func test_existing_overlap_does_not_trap() -> void:
 	var m := _map(_rows(40, 8))
 	var other := Rect2(Vector2(10, 16), Vector2(16, 16))
-	var r := TankMotion.step(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.LEFT), FWD, 0.0, 0.1, [other])
+	var r := TankMotion.step(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.LEFT), FWD, Vector2(1, 1), 0.1, [other])
 	T.ok(r.pos.x < 8.0, "can drive away from an overlapping tank")
 
-func test_ice_keeps_coasting_when_released() -> void:
-	var rows := _rows(60, 8)
-	for x in range(0, 60):
-		for y in range(0, 8):
-			_put(rows, x, y, "I")
-	var m := _map(rows)
-	var r := _run(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 0.3)
-	T.ok(r.slide_t > 0.0, "momentum while driving on ice")
-	var x0: float = r.pos.x
-	r = _run(m, r.pos, r.facing, Cfg.STOP, 0.5, r.slide_t)
-	T.ok(r.pos.x > x0 + 5.0, "coasted on after release, moved %f" % (r.pos.x - x0))
-	r = _run(m, r.pos, r.facing, Cfg.STOP, 2.0, r.slide_t)
-	T.eq(r.slide_t, 0.0, "momentum fades out")
+func test_speeds_up_gradually_from_rest() -> void:
+	var m := _map(_rows(60, 8))
+	var r := _run(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 1.0, Vector2.ZERO)
+	T.ok(r.pos.x - 8.0 < 55.0, "less than cruising distance in the first second, moved %f" % (r.pos.x - 8.0))
+	T.ok(r.pos.x - 8.0 > 30.0, "but it does get going, moved %f" % (r.pos.x - 8.0))
+	T.eq(r.trk, Vector2(1, 1), "full speed by then")
 
-func test_ice_momentum_is_signed_when_reversing() -> void:
-	var rows := _rows(60, 8)
-	for x in range(0, 60):
-		for y in range(0, 8):
-			_put(rows, x, y, "I")
-	var m := _map(rows)
-	var r := _run(m, Vector2(100, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(-1, -1), 0.2)
-	T.ok(r.slide_t < 0.0, "backward momentum is negative")
-	var x0: float = r.pos.x
-	r = _run(m, r.pos, r.facing, Cfg.STOP, 0.3, r.slide_t)
-	T.ok(r.pos.x < x0, "keeps coasting backwards")
+func test_coasts_to_a_stop_when_released() -> void:
+	var m := _map(_rows(60, 8))
+	var r := _run(m, Vector2(8, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.STOP, 1.0, Vector2(1, 1))
+	T.ok(r.pos.x - 8.0 > 5.0, "keeps rolling after release, moved %f" % (r.pos.x - 8.0))
+	T.ok(r.pos.x - 8.0 < 20.0, "but not far, moved %f" % (r.pos.x - 8.0))
+	T.eq(r.trk, Vector2.ZERO, "stopped")
 
-func test_wall_stops_an_ice_slide_dead() -> void:
+func test_reversing_brakes_before_going_backwards() -> void:
+	var m := _map(_rows(60, 8))
+	var r := _run(m, Vector2(30, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.drive(-1, -1), 0.1, Vector2(1, 1))
+	T.ok(r.trk.x > 0.0, "still rolling forward 0.1 s after hitting reverse")
+
+func test_ice_slides_further_than_ground() -> void:
+	var rows := _rows(60, 8)
+	for x in 60:
+		for y in 8:
+			_put(rows, x, y, "I")
+	var ice := _run(_map(rows), Vector2(8, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.STOP, 1.0, Vector2(1, 1))
+	var ground := _run(_map(_rows(60, 8)), Vector2(8, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.STOP, 1.0, Vector2(1, 1))
+	T.ok(ice.pos.x > ground.pos.x + 10.0, "ice %f vs ground %f" % [ice.pos.x, ground.pos.x])
+
+func test_backward_coast_stays_backward() -> void:
+	var m := _map(_rows(60, 8))
+	var r := _run(m, Vector2(100, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.STOP, 0.3, Vector2(-1, -1))
+	T.ok(r.pos.x < 100.0, "keeps rolling backwards")
+
+func test_wall_stops_the_tank_dead() -> void:
 	var rows := _rows(20, 8)
-	for x in range(0, 20):
-		for y in range(0, 8):
-			_put(rows, x, y, "I")
 	for y in 8:
 		_put(rows, 8, y, "B")
-	var m := _map(rows)
-	var r := _run(m, Vector2(20, 16), Cfg.heading(Cfg.Dir.RIGHT), Cfg.STOP, 1.0, Cfg.ICE_SLIDE_S)
-	T.eq(r.slide_t, 0.0, "momentum cleared on impact")
+	var r := _run(_map(rows), Vector2(100, 16), Cfg.heading(Cfg.Dir.RIGHT), FWD, 1.0, Vector2(1, 1))
+	T.eq(r.trk, Vector2.ZERO, "speed cleared on impact")

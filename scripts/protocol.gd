@@ -3,7 +3,7 @@ class_name Protocol extends RefCounted
 
 const FP := 16.0
 const ANGLE_FP := 1000.0   # headings travel as milliradians
-const TANK_INTS := 9
+const TANK_INTS := 10
 const BULLET_INTS := 6
 const POWERUP_INTS := 5
 
@@ -12,7 +12,7 @@ static func encode_snapshot(sim: Sim) -> Array:
 	for t in sim.tanks.values():
 		var flags := (1 if t.alive else 0) | (2 if t.shield_t > 0.0 else 0) | (clampi(t.hp, 0, 7) << 2)
 		tanks.append_array([t.id, roundi(t.pos.x * FP), roundi(t.pos.y * FP), roundi(t.facing * ANGLE_FP), flags,
-			t.stars, t.kills, t.ack_seq, roundi(t.slide_t * 1000.0)])
+			t.stars, t.kills, t.ack_seq, roundi(t.trk.x * 1000.0), roundi(t.trk.y * 1000.0)])
 	var bullets := PackedInt32Array()
 	for b in sim.bullets:
 		bullets.append_array([b.id, roundi(b.pos.x * FP), roundi(b.pos.y * FP), roundi(b.heading * ANGLE_FP), b.owner, 1 if b.stars >= 1 else 0])
@@ -28,7 +28,7 @@ static func decode_snapshot(a: Array) -> Dictionary:
 		out.tanks[t[i]] = {
 			"pos": Vector2(t[i + 1], t[i + 2]) / FP, "facing": t[i + 3] / ANGLE_FP,
 			"alive": (t[i + 4] & 1) != 0, "shield": (t[i + 4] & 2) != 0, "hp": (t[i + 4] >> 2) & 7,
-			"stars": t[i + 5], "kills": t[i + 6], "ack": t[i + 7], "slide": t[i + 8] / 1000.0,
+			"stars": t[i + 5], "kills": t[i + 6], "ack": t[i + 7], "trk": Vector2(t[i + 8], t[i + 9]) / 1000.0,
 		}
 	var b: PackedInt32Array = a[2]
 	for i in range(0, b.size(), BULLET_INTS):

@@ -46,9 +46,9 @@ static func _slide(map: GameMap, pos: Vector2, d: Vector2) -> Vector2:
 
 # blockers: rects of other tanks. A move that newly overlaps one is refused (the tank can still turn); an
 # existing overlap (e.g. a tank spawned on top of another) never traps you.
-# Returns {pos, facing (the new heading), slide_t}. slide_t is ice momentum: signed, + forward, - backward.
-static func step(map: GameMap, pos: Vector2, heading: float, drive: int, slide_t: float, dt: float, blockers: Array = []) -> Dictionary:
-	var r := _step_map(map, pos, heading, drive, slide_t, dt)
+# Returns {pos, facing (the new heading), trk (the two track speeds, see _step_map)}.
+static func step(map: GameMap, pos: Vector2, heading: float, drive: int, trk: Vector2, dt: float, blockers: Array = []) -> Dictionary:
+	var r := _step_map(map, pos, heading, drive, trk, dt)
 	if blockers.is_empty():
 		return r
 	var old := Rect2(pos, Vector2(Cfg.TANK_PX, Cfg.TANK_PX))
@@ -59,21 +59,22 @@ static func step(map: GameMap, pos: Vector2, heading: float, drive: int, slide_t
 			break
 	return r
 
-static func _step_map(map: GameMap, pos: Vector2, heading: float, drive: int, slide_t: float, dt: float) -> Dictionary:
-	var l := Cfg.drive_left(drive)
-	var r := Cfg.drive_right(drive)
-	var v := (l + r) * 0.5 * Cfg.TANK_SPEED               # px/s along the heading
-	var w := (l - r) * Cfg.TANK_SPEED / Cfg.TRACK_GAP     # rad/s, clockwise when the left track is faster
-	var coasting := l == 0 and r == 0 and slide_t != 0.0
-	if l == 0 and r == 0 and not coasting:
-		return {"pos": pos, "facing": heading, "slide_t": 0.0}
-	if coasting:   # ice: carry on straight with fading speed
-		v = signf(slide_t) * Cfg.TANK_SPEED * clampf(absf(slide_t) / Cfg.ICE_SLIDE_S, 0.0, 1.0)
+static func _step_map(map: GameMap, pos: Vector2, heading: float, drive: int, trk: Vector2, dt: float) -> Dictionary:
+	# trk = current speed of the left/right track in -1..1. It chases the driven target, so the tank has weight.
+	var target := Vector2(Cfg.drive_left(drive), Cfg.drive_right(drive))
+	if target == Vector2.ZERO and trk == Vector2.ZERO:
+		return {"pos": pos, "facing": heading, "trk": trk}
+	var grip := Cfg.ICE_GRIP if _on_ice(map, pos) else 1.0
+	trk = Vector2(_chase(trk.x, target.x, dt * grip), _chase(trk.y, target.y, dt * grip))
+	var v := (trk.x + trk.y) * 0.5 * Cfg.TANK_SPEED            # px/s along the heading
+	var w := (trk.x - trk.y) * Cfg.TANK_SPEED / Cfg.TRACK_GAP  # rad/s, clockwise when the left track is faster
 	var mid := heading + w * dt * 0.5
 	var np := _slide(map, pos, Cfg.heading_vec(mid) * v * dt)
-	var moved := np.distance_to(pos) > 0.001
-	if coasting:
-		slide_t = signf(slide_t) * maxf(0.0, absf(slide_t) - dt) if moved else 0.0   # a wall stops you dead
-	else:
-		slide_t = signf(v) * Cfg.ICE_SLIDE_S if v != 0.0 and moved and _on_ice(map, np) else 0.0
-	return {"pos": np, "facing": wrapf(heading + w * dt, 0.0, TAU), "slide_t": slide_t}
+	if v != 0.0 and np.distance_to(pos) < 0.001:
+		trk = Vector2.ZERO   # hit a wall: stop dead
+	return {"pos": np, "facing": wrapf(heading + w * dt, 0.0, TAU), "trk": trk}
+
+# Move a track speed toward its target: gentle when speeding up in its direction, firmer when braking/reversing.
+static func _chase(cur: float, target: float, dt: float) -> float:
+	var speeding := absf(target) > absf(cur) and signf(target) == signf(cur) or cur == 0.0
+	return move_toward(cur, target, (Cfg.TRACK_ACCEL if speeding else Cfg.TRACK_BRAKE) * dt)
